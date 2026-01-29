@@ -681,6 +681,9 @@ real_t KnockOnUtilities::SetDeltaMatrixColumnOnGrid(
     len_t ir, real_t xi_star, len_t l, const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary,
     real_t *deltaCol, len_t n_points_integral, orbit_integration_method quad
 ) {
+    if (grid_primary->GetVpOverP2AtZero(ir)[l] == 0) {
+        return 0;
+    }
     FVM::MomentumGrid *mg = grid_knockon->GetMomentumGrid(ir);
     len_t Nxi = mg->GetNp2();
     real_t norm = 0;

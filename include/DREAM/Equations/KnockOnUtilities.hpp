@@ -207,5 +207,10 @@ real_t EvaluateMollerFluxIntegratedOverKnockonGrid(
     len_t k, const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t pCutoff
 );
 
+// Set a single momentum matrix element S_{ik} on a DREAM grid.
+real_t EvaluateMollerFluxMatrixElementOnGrid(
+    len_t i, len_t k, const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t pCutoff
+);
+
 }  // namespace DREAM::KnockOnUtilities
 #endif /*_DREAM_EQUATIONS_KNOCK_ON_UTILITIES_HPP*/
