@@ -112,6 +112,7 @@ set(dream_equations
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/ElectricFieldTerm.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/ElectricFieldDiffusionTerm.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/EnergyDiffusionTerm.cpp"
+    "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/KnockOnOperatorGeneral.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/PitchScatterTerm.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/ParticleSourceTerm.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/PrescribedKineticParameter.cpp"
