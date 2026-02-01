@@ -90,7 +90,7 @@ void KnockOnOperatorGeneral::SetSourceVector(const real_t *f_primary) {
         for (len_t i = 0; i < mgK->GetNp1(); i++) {
             for (len_t j = 0; j < mgK->GetNp2(); j++) {
                 sourceVector[offset + mgK->GetNp1() * j + i] = 0;
-                if (grid->GetVpOverP2AtZero(ir)[j]==0){
+                if (grid->GetVpOverP2AtZero(ir)[j] == 0) {
                     continue;
                 }
                 for (len_t k = 0; k < mgP->GetNp1(); k++) {
