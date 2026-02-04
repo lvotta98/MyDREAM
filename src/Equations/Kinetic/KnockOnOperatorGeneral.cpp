@@ -13,13 +13,15 @@ using namespace DREAM;
 
 KnockOnOperatorGeneral::KnockOnOperatorGeneral(
     FVM::Grid *grid_knockon, FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *unknowns,
-    len_t id_f_primary, real_t pCutoff, len_t n_xi_stars_tabulate, len_t n_points_integral
+    len_t id_f_primary, real_t pCutoff, real_t scaleFactor, len_t n_xi_stars_tabulate,
+    len_t n_points_integral
 )
     : FVM::EquationTerm(grid_knockon),
       grid_primary(grid_primary),
       unknowns(unknowns),
       id_f_primary(id_f_primary),
       pCutoff(pCutoff),
+      scaleFactor(scaleFactor),
       n_xi_stars_tabulate(n_xi_stars_tabulate),
       n_points_integral(n_points_integral) {
     SetName("KnockOnOperatorGeneral");
@@ -34,17 +36,31 @@ KnockOnOperatorGeneral::~KnockOnOperatorGeneral() { Deallocate(); }
 
 void KnockOnOperatorGeneral::Deallocate() {
     len_t Nr = grid->GetNr();
-    for (len_t ir = 0; ir < Nr; ir++) {
-        // XXX: assume p-xi grid
-        for (len_t m = 0; m < n_xi_stars_tabulate; m++) {
-            delete[] deltaTable[ir][m];
+    if (deltaTable != nullptr) {
+        for (len_t ir = 0; ir < Nr; ir++) {
+            // XXX: assume p-xi grid
+            for (len_t m = 0; m < n_xi_stars_tabulate; m++) {
+                delete[] deltaTable[ir][m];
+            }
+            delete[] deltaTable[ir];
         }
-        delete[] deltaTable[ir];
+        delete[] deltaTable;
     }
-    delete[] deltaTable;
-    delete[] xiStarsTab;
-    delete[] mollerSMatrix;
-    delete[] sourceVector;
+    if (xiInterp != nullptr) {
+        for (len_t ir = 0; ir < Nr; ir++) {
+            delete[] xiInterp[ir];
+        }
+        delete[] xiInterp;
+    }
+    if (xiStarsTab != nullptr) {
+        delete[] xiStarsTab;
+    }
+    if (mollerSMatrix != nullptr) {
+        delete[] mollerSMatrix;
+    }
+    if (sourceVector != nullptr) {
+        delete[] sourceVector;
+    }
 }
 
 void KnockOnOperatorGeneral::Allocate() {
@@ -78,38 +94,120 @@ void KnockOnOperatorGeneral::Allocate() {
     for (len_t i = 0; i < n_xi_stars_tabulate; i++) {
         xiStarsTab[i] = xiStar_min + (real_t)i * dXiStar;
     }
+
+    xiInterp = new XiStarInterp *[Nr];
+    for (len_t ir = 0; ir < Nr; ++ir) {
+        xiInterp[ir] = new XiStarInterp[grid->GetNp1(ir) * grid_primary->GetNp1(ir)];
+    }
     SetMollerSMatrix(mollerSMatrix);
     TabulateDeltaMatrixOnXiStarGrid();
+    BuildXiStarInterp();
+}
+
+void KnockOnOperatorGeneral::BuildXiStarInterp() {
+    const real_t inv_dXiStar = 1.0 / dXiStar;
+
+    for (len_t ir = 0; ir < grid->GetNr(); ++ir) {
+        auto *mgK = grid->GetMomentumGrid(ir);
+        auto *mgP = grid_primary->GetMomentumGrid(ir);
+
+        const len_t NpK = mgK->GetNp1();
+        const len_t NpP = mgP->GetNp1();
+
+        const real_t *p = mgK->GetP1();
+        const real_t *p1 = mgP->GetP1();
+
+        for (len_t i = 0; i < NpK; i++) {
+            for (len_t k = 0; k < NpP; k++) {
+                XiStarInterp &T = xiInterp[ir][i * NpP + k];
+
+                real_t xs = KnockOnUtilities::Kinematics::EvaluateXiStar(p[i], p1[k]);
+
+                if (xs <= xiStar_min) {
+                    T.clamp = 1;
+                    continue;
+                }
+                if (xs >= xiStar_max) {
+                    T.clamp = 2;
+                    continue;
+                }
+
+                real_t s = (xs - xiStar_min) * inv_dXiStar;  // >=0
+                len_t m0 = (len_t)s;                         // trunc ok since s>=0
+
+                if (m0 >= n_xi_stars_tabulate - 1) {
+                    m0 = n_xi_stars_tabulate - 2;
+                }
+
+                T.clamp = 0;
+                T.m0 = m0;
+                T.w1 = s - (real_t)m0;  // in [0,1)
+            }
+        }
+    }
 }
 
 void KnockOnOperatorGeneral::SetSourceVector(const real_t *f_primary) {
-    len_t offset = 0;
-    for (len_t ir = 0; ir < grid_primary->GetNr(); ir++) {
+    len_t offK = 0;
+    len_t offP = 0;
+
+    const len_t Nr = grid->GetNr();
+
+    for (len_t ir = 0; ir < Nr; ir++) {
         auto *mgK = grid->GetMomentumGrid(ir);
         auto *mgP = grid_primary->GetMomentumGrid(ir);
-        for (len_t i = 0; i < mgK->GetNp1(); i++) {
-            for (len_t j = 0; j < mgK->GetNp2(); j++) {
-                sourceVector[offset + mgK->GetNp1() * j + i] = 0;
-                if (grid->GetVpOverP2AtZero(ir)[j] == 0) {
-                    continue;
-                }
-                for (len_t k = 0; k < mgP->GetNp1(); k++) {
-                    for (len_t l = 0; l < mgP->GetNp2(); l++) {
-                        real_t Vp1 = grid_primary->GetVp(ir, k, l);
-                        real_t f = f_primary[offset + mgP->GetNp1() * l + k];
-                        real_t S = mollerSMatrix[i * mgP->GetNp1() + k];
-                        real_t delta = EvaluateDeltaMatrixElement(ir, i, k, j, l);
-                        real_t dp = mgP->GetDp1(k);
-                        real_t dxi = mgP->GetDp2(l);
-                        sourceVector[offset + mgK->GetNp1() * j + i] +=
-                            dp * dxi * Vp1 * f * S * delta;
-                    }
-                }
-                real_t Vp = grid->GetVp(ir, i, j);
-                sourceVector[offset + mgK->GetNp1() * j + i] /= Vp;
+
+        const len_t Np1K = mgK->GetNp1();
+        const len_t Np2K = mgK->GetNp2();
+        const len_t Np1P = mgP->GetNp1();
+        const len_t Np2P = mgP->GetNp2();
+
+        const real_t *VpK = grid->GetVp(ir);
+        const real_t *VpP = grid_primary->GetVp(ir);
+        const real_t *VpOverP2 = grid->GetVpOverP2AtZero(ir);
+        const real_t *dp1 = mgP->GetDp1();
+        const real_t *dxi1 = mgP->GetDp2();
+
+        // Precompute the part of the integrand that lives only on the primary grid
+        std::vector<real_t> Wkl;
+        Wkl.resize((size_t)Np1P * (size_t)Np2P);
+        for (len_t l = 0; l < Np2P; l++) {
+            const real_t dxi = dxi1[l];
+            const len_t base = l * Np1P;
+            for (len_t k = 0; k < Np1P; k++) {
+                const len_t idxP = base + k;
+                const real_t f = f_primary[offP + idxP];
+                Wkl[idxP] = dp1[k] * dxi * VpP[idxP] * f;
             }
         }
-        offset += mgK->GetNCells();
+
+        for (len_t j = 0; j < Np2K; j++) {
+            if (VpOverP2[j] == 0) continue;
+
+            const len_t baseK = offK + j * Np1K;
+
+            for (len_t i = 0; i < Np1K; i++) {
+                const len_t idxK = baseK + i;
+
+                real_t sum = 0;
+
+                // integrate over primary momentum grid
+                for (len_t l = 0; l < Np2P; l++) {
+                    const len_t baseP = l * Np1P;
+                    for (len_t k = 0; k < Np1P; k++) {
+                        const len_t idxP = baseP + k;
+
+                        const real_t S = mollerSMatrix[i * Np1P + k];
+                        const real_t delta = EvaluateDeltaMatrixElement(ir, i, k, j, l);
+                        sum += Wkl[idxP] * S * delta;
+                    }
+                }
+                sourceVector[idxK] = sum * (scaleFactor / VpK[idxK]);
+            }
+        }
+
+        offK += mgK->GetNCells();
+        offP += mgP->GetNCells();
     }
 }
 
@@ -158,7 +256,7 @@ void KnockOnOperatorGeneral::SetVectorElements(real_t *vec, const real_t *x) {
  * Set jacobian matrix elements.
  */
 bool KnockOnOperatorGeneral::SetJacobianBlock(
-    const len_t uqtyId, const len_t derivId, FVM::Matrix *jac, const real_t * /*x*/
+    const len_t /*uqtyId*/, const len_t derivId, FVM::Matrix *jac, const real_t * /*x*/
 ) {
     if (derivId == id_ntot) {
         len_t offset = 0;
@@ -212,37 +310,25 @@ void KnockOnOperatorGeneral::TabulateDeltaMatrixOnXiStarGrid() {
 real_t KnockOnOperatorGeneral::EvaluateDeltaMatrixElement(
     len_t ir, len_t i, len_t k, len_t j, len_t l
 ) {
-    const FVM::MomentumGrid *mgK = grid->GetMomentumGrid(ir);
-    const len_t Nxi = mgK->GetNp2();
+    const len_t Nxi = grid->GetMomentumGrid(ir)->GetNp2();
+    const len_t idxJL = l * Nxi + j;
 
-    real_t p = mgK->GetP1(i);
-    real_t p1 = grid_primary->GetMomentumGrid(ir)->GetP1(k);
+    auto *mgP = grid_primary->GetMomentumGrid(ir);
+    const len_t NpP = mgP->GetNp1();
+    const XiStarInterp &T = xiInterp[ir][i * NpP + k];
 
-    real_t xiStar = KnockOnUtilities::Kinematics::EvaluateXiStar(p, p1);
-
-    // Clamp to tabulation range
-    if (xiStar <= xiStar_min) {
-        return deltaTable[ir][0][l * Nxi + j];
+    if (T.clamp == 1) {
+        return deltaTable[ir][0][idxJL];
     }
-    if (xiStar >= xiStar_max) {
-        return deltaTable[ir][n_xi_stars_tabulate - 1][l * Nxi + j];
+    if (T.clamp == 2) {
+        return deltaTable[ir][n_xi_stars_tabulate - 1][idxJL];
     }
 
-    // Map xi_star to fractional index s in [0, n-1]
-    real_t s = (xiStar - xiStar_min) / dXiStar;  // since uniform
+    const len_t m0 = T.m0;
+    const real_t w1 = T.w1;
+    const real_t w0 = 1.0 - w1;
 
-    // Lower index
-    len_t m0 = (len_t)floor(s);
-
-    // Safety clamp (handles rare roundoff making m0==n-1)
-    if (m0 >= n_xi_stars_tabulate - 1) m0 = n_xi_stars_tabulate - 2;
-
-    len_t m1 = m0 + 1;
-
-    real_t w1 = s - (real_t)m0;  // in [0,1)
-    real_t w0 = 1.0 - w1;
-
-    const real_t d0 = deltaTable[ir][m0][l * Nxi + j];
-    const real_t d1 = deltaTable[ir][m1][l * Nxi + j];
+    const real_t d0 = deltaTable[ir][m0][idxJL];
+    const real_t d1 = deltaTable[ir][m0 + 1][idxJL];
     return w0 * d0 + w1 * d1;
 }

@@ -16,7 +16,7 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
     len_t id_f_primary;
 
     real_t pCutoff;
-
+    real_t scaleFactor;
     // tabulated values of size Nr x n_xi_stars_tabulate x (Nxi*Nxi)
     len_t n_xi_stars_tabulate;
     real_t xiStar_min = 0.0;
@@ -28,6 +28,13 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
     real_t *sourceVector = nullptr;
     real_t *mollerSMatrix = nullptr;
 
+    struct XiStarInterp {
+        len_t m0;       // valid if not clamped
+        real_t w1;      // valid if not clamped
+        uint8_t clamp;  // 0=interp, 1=low, 2=high
+    };
+    XiStarInterp **xiInterp = nullptr;
+
     real_t t_source_rebuilt;
     void Allocate();
     void Deallocate();
@@ -35,10 +42,12 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
     void SetMollerSMatrix(real_t*);
     void SetSourceVector(const real_t *f_primary);
 
+    void BuildXiStarInterp();
+
    public:
     KnockOnOperatorGeneral(
         FVM::Grid *grid_knockon, FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *unknowns,
-        len_t id_f_primary, real_t p_cutoff, len_t n_xi_stars_tabulate = 50,
+        len_t id_f_primary, real_t p_cutoff, real_t scaleFactor=1.0, len_t n_xi_stars_tabulate = 50,
         len_t n_points_integral = 80
     );
     ~KnockOnOperatorGeneral();
@@ -56,6 +65,7 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
     // The below are mainly used in unit testing 
     real_t EvaluateDeltaMatrixElement(len_t ir, len_t i, len_t k, len_t j, len_t l);
     const real_t *GetSourceVector() const { return sourceVector; }
+    const FVM::Grid *GetGrid() const { return grid; }
 };
 }  // namespace DREAM
 
