@@ -736,6 +736,46 @@ void OtherQuantityHandler::DefineQuantities() {
 		}
 	);
     
+    if (tracked_terms->f_hot_knock_on_general != nullptr) {
+		DEF_HT("hottail/C_boltz", "Boltzmann knock-on collision integral [s^-1 m^-3]",
+			const real_t *ntot = this->unknowns->GetUnknownData(this->id_ntot);
+			real_t *C_boltz = qd->StoreEmpty();
+            const real_t *sourceVector = tracked_terms->f_hot_knock_on_general->GetSourceVector();
+
+            auto *grid_knockon = tracked_terms->f_hot_knock_on_general->GetGrid();
+            len_t offset = 0;
+            for (len_t ir = 0; ir < grid_knockon->GetNr(); ir++) {
+                len_t np1 = grid_knockon->GetNp1(ir);
+                len_t np2 = grid_knockon->GetNp2(ir);
+                for (len_t i = 0; i < np1; i++){
+                    for (len_t j = 0; j < np2; j++) {
+                        len_t ind = offset + np1 * j + i;
+                        C_boltz[ind] = -ntot[ir] * sourceVector[ind];
+                    }
+                }
+                offset += n1_ht*n2_ht;
+            }
+		);
+    }
+    if (tracked_terms->f_hot_knock_on_RP != nullptr) {
+		DEF_HT("hottail/S_ava_RP", "Rosenbluth-Putvinski knock-on collision integral [s^-1 m^-3]",
+			const real_t *nre = this->unknowns->GetUnknownData(this->id_n_re);
+			real_t *S_ava = qd->StoreEmpty();
+            const real_t *sourceVector = tracked_terms->f_hot_knock_on_RP->GetSourceVector();
+
+            len_t offset = 0;
+            for (len_t ir = 0; ir < nr_ht; ir++) {
+                for (len_t i = 0; i < n1_ht; i++) {
+                    for (len_t j = 0; j < n2_ht; j++) {
+                        len_t ind = offset + n1_ht * j + i;
+                        S_ava[ind] = -nre[ir] * sourceVector[ind];
+                    }
+                }
+                offset += n1_ht*n2_ht;
+            }
+		);
+    }
+
 	if (tracked_terms->comptonSource_hottail != nullptr) {
 		DEF_HT("hottail/S_compton", "Compton scattering source term [s^-1 m^-3]",
 			const real_t *ntot = this->unknowns->GetUnknownData(this->id_ntot);
@@ -906,6 +946,43 @@ void OtherQuantityHandler::DefineQuantities() {
             avaNeg->SetVectorElements(v, nre_neg);
         }
     );
+
+    
+    if (tracked_terms->f_re_knock_on_general != nullptr) {
+		DEF_RE("runaway/C_boltz", "Boltzmann knock-on collision integral [s^-1 m^-3]",
+			const real_t *ntot = this->unknowns->GetUnknownData(this->id_ntot);
+			real_t *C_boltz = qd->StoreEmpty();
+            const real_t *sourceVector = tracked_terms->f_re_knock_on_general->GetSourceVector();
+
+            len_t offset = 0;
+            for (len_t ir = 0; ir < nr_re; ir++) {
+                for (len_t i = 0; i < n1_re; i++)
+                    for (len_t j = 0; j < n2_re; j++) {
+                        len_t ind = offset + n1_re * j + i;
+                        C_boltz[ind] = -ntot[ir] * sourceVector[ind];
+                    }
+                offset += n1_re*n2_re;
+            }
+		);
+    }
+    if (tracked_terms->f_re_knock_on_RP != nullptr) {
+		DEF_RE("runaway/S_ava_RP", "Rosenbluth-Putvinski knock-on collision integral [s^-1 m^-3]",
+			const real_t *nre = this->unknowns->GetUnknownData(this->id_n_re);
+			real_t *S_ava = qd->StoreEmpty();
+            const real_t *sourceVector = tracked_terms->f_re_knock_on_RP->GetSourceVector();
+
+            len_t offset = 0;
+            for (len_t ir = 0; ir < nr_re; ir++) {
+                for (len_t i = 0; i < n1_re; i++)
+                    for (len_t j = 0; j < n2_re; j++) {
+                        len_t ind = offset + n1_re * j + i;
+                        S_ava[ind] = -nre[ir] * sourceVector[ind];
+                    }
+                offset += n1_re*n2_re;
+            }
+		);
+    }
+
     if (tracked_terms->comptonSource_runaway != nullptr) {
 		DEF_RE("runaway/S_compton", "Compton scattering source term [s^-1 m^-3]",
 			const real_t *ntot = this->unknowns->GetUnknownData(this->id_ntot);

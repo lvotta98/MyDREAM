@@ -22,6 +22,8 @@ namespace DREAM {
         virtual void SetVectorElements(real_t*, const real_t*) override;
         virtual bool SetJacobianBlock(const len_t uqtyId, const len_t derivId, FVM::Matrix *jac, const real_t* x) override;
 
+        const real_t *GetSourceVector() const {return sourceVec;}
+
         virtual len_t GetNumberOfNonZerosPerRow() const override 
             { return 1; }
 
