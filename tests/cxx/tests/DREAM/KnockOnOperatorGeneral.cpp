@@ -344,14 +344,27 @@ bool KnockOnOperatorGeneral::CheckKOG_SourceVectorLinearity() {
     bool success = true;
 
     // Compare SAB ~ SA + SB
-    for (len_t q = 0; q < NK; q++) {
-        real_t diff = fabs(SAB[q] - (SA[q] + SB[q]));
-        if (diff > tol * (1 + fabs(SAB[q]))) {
-            success = false;
-            break;
+    len_t offset = 0;
+    for (len_t ir=0; ir<gridK->GetNr(); ir++){
+        auto *mg = gridK->GetMomentumGrid(ir);
+        for (len_t j=0; j<mg->GetNp2(); j++){
+            for (len_t i=0; i<mg->GetNp1(); i++){
+                len_t idx = offset + mg->GetNp1()*j + i;
+                real_t diff = fabs(SAB[idx] - (SA[idx] + SB[idx]));
+                if (diff > tol * (1 + fabs(SAB[idx]))) {
+                    printf("Test failed (ir=%ld, i=%ld, j=%ld):\n", ir, i, j);
+                    printf("  diff = %.8g:\n", diff);
+                    printf("  tol = %.8g\n", tol * (1 + fabs(SAB[idx])));
+                    printf("  SA = %.8g\n", SA[idx]);
+                    printf("  SB = %.8g\n", SB[idx]);
+                    printf("  SAB = %.8g\n", SAB[idx]);
+                    success = false;
+                    break;
+                }
+            }
         }
+        offset += mg->GetNCells();
     }
-
     delete[] fA;
     delete[] fB;
     delete[] fAB;
@@ -437,7 +450,6 @@ bool KnockOnOperatorGeneral::CheckKOG_JacobianFiniteDifferenceNt() {
     jac.PartialAssemble();
     op.SetJacobianBlock(id_f, id_ntot, &jac, /*x*/ nullptr);
     jac.Assemble();
-    printf("After SetJacobianBlock\n");
     // Compare column ir0
     bool success = true;
     for (len_t q = 0; q < NK; q++) {
@@ -448,7 +460,6 @@ bool KnockOnOperatorGeneral::CheckKOG_JacobianFiniteDifferenceNt() {
             break;
         }
     }
-    printf("After jac.GetElement loops\n");
 
     delete[] f0;
     delete[] R0;
