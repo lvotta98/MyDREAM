@@ -171,33 +171,78 @@ void KnockOnOperatorGeneral::BuildXiStarInterp() {
     }
 }
 
-namespace {
-
 // Wkl(k,l) = dp1(k) * dxi1(l) * VpP(k,l) * f_primary(k,l)
 // where all quantities live on the *primary* momentum grid at radius ir.
 //
 // Input pointer f_primary_ir must point to the first cell of the primary grid at this radius.
-std::vector<real_t> BuildPrimaryGridWeights(
-    const real_t *f_primary_ir, const real_t *VpP_ir, const FVM::MomentumGrid *mgP
+void KnockOnOperatorGeneral::BuildPrimaryWeights(
+    len_t ir, const real_t *f_primary_ir, real_t *W_k_l
 ) {
-    const len_t Np1P = mgP->GetNp1();
-    const len_t Np2P = mgP->GetNp2();
-    const real_t *dp1 = mgP->GetDp1();
-    const real_t *dxi1 = mgP->GetDp2();
+    auto *mgP = gridPrimary->GetMomentumGrid(ir);
 
-    std::vector<real_t> primaryWeights;
-    primaryWeights.resize((size_t)Np1P * (size_t)Np2P);
-    for (len_t l = 0; l < Np2P; l++) {
+    const len_t Np1P = mgP->GetNp1();
+    const len_t NxiP = mgP->GetNp2();
+
+    const real_t *dp1 = mgP->GetDp1();           // [k]
+    const real_t *dxi1 = mgP->GetDp2();          // [l]
+    const real_t *VpP = gridPrimary->GetVp(ir);  // [l*Np1P + k]
+
+    // input f_primary_ir is (l,k) contiguous: idx = l*Np1P + k
+    for (len_t l = 0; l < NxiP; ++l) {
         const real_t dxi = dxi1[l];
-        const len_t base = l * Np1P;
-        for (len_t k = 0; k < Np1P; k++) {
-            const len_t idxP = base + k;
-            primaryWeights[idxP] = dp1[k] * dxi * VpP_ir[idxP] * f_primary_ir[idxP];
+        const len_t base_lk = l * Np1P;
+        for (len_t k = 0; k < Np1P; ++k) {
+            const len_t idx_lk = base_lk + k;
+            W_k_l[k * NxiP + l] = dp1[k] * dxi * VpP[idx_lk] * f_primary_ir[idx_lk];
         }
     }
-    return primaryWeights;
 }
-}  // namespace
+
+void KnockOnOperatorGeneral::AccumulateAngleKernel(
+    len_t ir, len_t i, len_t k, const real_t *W_l, real_t Sik, real_t *outPitch_j
+) {
+    if (Sik == 0) return;
+
+    auto *mgK = grid->GetMomentumGrid(ir);
+    auto *mgP = gridPrimary->GetMomentumGrid(ir);
+
+    const len_t NxiK = mgK->GetNp2();
+    const len_t NxiP = mgP->GetNp2();
+
+    const real_t *D0, *D1;
+    real_t w0, w1;
+    SelectDeltaPlanes(ir, i, k, D0, D1, w0, w1);
+
+    // Apply columns: out[j] += Sik * Σ_l W_l[l] * Δ_{j l}
+    if (D1 == nullptr) {
+        // clamped tabulation, set end point values
+        for (len_t l = 0; l < NxiP; ++l) {
+            const real_t W = W_l[l];
+            if (W == 0) {
+                continue;
+            }
+            const real_t scale = Sik * W;
+            const real_t *col0 = D0 + l * NxiK;
+            for (len_t j = 0; j < NxiK; ++j) {
+                outPitch_j[j] += scale * col0[j];
+            }
+        }
+    } else {
+        // linearly interpolate in the table
+        for (len_t l = 0; l < NxiP; ++l) {
+            const real_t W = W_l[l];
+            if (W == 0) {
+                continue;
+            }
+            const real_t scale = Sik * W;
+            const real_t *col0 = D0 + l * NxiK;
+            const real_t *col1 = D1 + l * NxiK;
+            for (len_t j = 0; j < NxiK; ++j) {
+                outPitch_j[j] += scale * (w0 * col0[j] + w1 * col1[j]);
+            }
+        }
+    }
+}
 
 void KnockOnOperatorGeneral::SetSourceVector(const real_t *f_primary) {
     len_t offK = 0;
@@ -205,51 +250,62 @@ void KnockOnOperatorGeneral::SetSourceVector(const real_t *f_primary) {
 
     const len_t Nr = grid->GetNr();
 
-    for (len_t ir = 0; ir < Nr; ir++) {
-        auto *mgK = grid->GetMomentumGrid(ir);
-        auto *mgP = gridPrimary->GetMomentumGrid(ir);
+    // XXX: same momentum grid att all radii
+    const auto *mgK = grid->GetMomentumGrid(0);
+    const auto *mgP = gridPrimary->GetMomentumGrid(0);
 
+    const len_t NxiK0 = mgK->GetNp2();
+    const len_t Np1P0 = mgP->GetNp1();
+    const len_t NxiP0 = mgP->GetNp2();
+
+    real_t *W_k_l = new real_t[Np1P0 * NxiP0];
+    real_t *pitchAccum = new real_t[NxiK0];
+
+    for (len_t ir = 0; ir < Nr; ++ir) {
         const len_t Np1K = mgK->GetNp1();
-        const len_t Np2K = mgK->GetNp2();
+        const len_t NxiK = mgK->GetNp2();
         const len_t Np1P = mgP->GetNp1();
-        const len_t Np2P = mgP->GetNp2();
+        const len_t NxiP = mgP->GetNp2();
 
         const real_t *VpK = grid->GetVp(ir);
-        const real_t *VpP = gridPrimary->GetVp(ir);
-        const real_t *VpOverP2 = grid->GetVpOverP2AtZero(ir);
+        const real_t *VpOverP2K = grid->GetVpOverP2AtZero(ir);
 
-        std::vector<real_t> primaryWeights = BuildPrimaryGridWeights(f_primary + offP, VpP, mgP);
+        // Build primary weights W(k,l) for this radius.
+        BuildPrimaryWeights(ir, f_primary + offP, W_k_l);
 
-        // these loops are performance sensitive, and so we pay extra care
-        // in index calculations and loop ordering
-        for (len_t j = 0; j < Np2K; j++) {
-            const len_t baseK = offK + j * Np1K;
-            if (VpOverP2[j] == 0) {
-                for (len_t i=0; i<Np1K; ++i)
-                    sourceVector[baseK + i] = 0.0;
-                    continue;
+        // For each outgoing momentum cell i: build pitch distribution by summing over k
+        for (len_t i = 0; i < Np1K; ++i) {
+            for (len_t j = 0; j < NxiK; ++j) {
+                pitchAccum[j] = 0.0;
             }
-            for (len_t i = 0; i < Np1K; i++) {
-                const len_t idxK = baseK + i;
 
-                real_t sum = 0;
-                // integrate over primary momentum grid
-                for (len_t l = 0; l < Np2P; l++) {
-                    const len_t baseP = l * Np1P;
-                    for (len_t k = 0; k < Np1P; k++) {
-                        const len_t idxP = baseP + k;
+            for (len_t k = 0; k < Np1P; ++k) {
+                const real_t Sik = MollerDifferentialCrossSection(ir, i, k);
+                const real_t *W_l = W_k_l + k * NxiP;
 
-                        const real_t S = mollerSMatrix[i * Np1P + k];
-                        const real_t delta = EvaluateDeltaMatrixElement(ir, i, k, j, l);
-                        sum += primaryWeights[idxP] * S * delta;
-                    }
+                AccumulateAngleKernel(ir, i, k, W_l, Sik, pitchAccum);
+            }
+
+            // Write to sourceVector at this i
+            for (len_t j = 0; j < NxiK; ++j) {
+                const len_t idxK = offK + j * Np1K + i;
+
+                if (VpOverP2K[j] == 0) {
+                    sourceVector[idxK] = 0.0;
+                    continue;
                 }
-                sourceVector[idxK] = sum * (scaleFactor / VpK[idxK - offK]);
+
+                const real_t Vp = VpK[j * Np1K + i];
+                sourceVector[idxK] = (Vp != 0) ? (pitchAccum[j] * (scaleFactor / Vp)) : 0.0;
             }
         }
+
         offK += mgK->GetNCells();
         offP += mgP->GetNCells();
     }
+
+    delete[] W_k_l;
+    delete[] pitchAccum;
 }
 
 void KnockOnOperatorGeneral::SetMollerSMatrix(real_t *mollerSMatrix) {
@@ -376,4 +432,37 @@ real_t KnockOnOperatorGeneral::EvaluateDeltaMatrixElement(
     const real_t d0 = deltaTable[ir][m0][idxJL];
     const real_t d1 = deltaTable[ir][m0 + 1][idxJL];
     return w0 * d0 + w1 * d1;
+}
+
+void KnockOnOperatorGeneral::SelectDeltaPlanes(
+    len_t ir, len_t i, len_t k, const real_t *&D0, const real_t *&D1, real_t &w0, real_t &w1
+) {
+    auto *mgP = gridPrimary->GetMomentumGrid(ir);
+    const len_t Np1P = mgP->GetNp1();
+
+    const XiStarInterp &T = xiInterp[ir][i * Np1P + k];
+
+    D0 = nullptr;
+    D1 = nullptr;
+    w0 = 1.0;
+    w1 = 0.0;
+
+    switch (T.clamp) {
+        case XiClamp::ClampLow:
+            D0 = deltaTable[ir][0];
+            return;
+
+        case XiClamp::ClampHigh:
+            D0 = deltaTable[ir][nXiStarsTabulate - 1];
+            return;
+
+        case XiClamp::Interp: {
+            const len_t m0 = T.m0;
+            D0 = deltaTable[ir][m0];
+            D1 = deltaTable[ir][m0 + 1];
+            w1 = T.w1;
+            w0 = 1.0 - w1;
+            return;
+        }
+    }
 }

@@ -47,7 +47,21 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
     void SetMollerSMatrix(real_t *);
     void BuildXiStarInterp();
 
+    void BuildPrimaryWeights(len_t ir, const real_t *f_primary_ir, real_t *W_k_l);
+
     void SetSourceVector(const real_t *f_primary);
+
+    inline real_t MollerDifferentialCrossSection(len_t ir, len_t i, len_t k) const {
+        // S(i,k) = differential cross section integrated over outgoing control volume i
+        return mollerSMatrix[i * gridPrimary->GetNp1(ir) + k];
+    }    
+    void SelectDeltaPlanes(
+        len_t ir, len_t i, len_t k, const real_t *&D0, const real_t *&D1, real_t &w0, real_t &w1
+    );
+    void AccumulateAngleKernel(
+        len_t ir, len_t i, len_t k, const real_t *W_l, real_t Sik, real_t *outPitch_j
+    );
+
 
    public:
     KnockOnOperatorGeneral(
@@ -66,6 +80,7 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
     virtual len_t GetNumberOfNonZerosPerRow() const override { return 1; }
 
     real_t EvaluateDeltaMatrixElement(len_t ir, len_t i, len_t k, len_t j, len_t l);
+    
     const real_t *GetSourceVector() const { return sourceVector; }
     const FVM::Grid *GetGrid() const { return grid; }
 };
