@@ -1,20 +1,18 @@
 /**
  * Unit/integration tests for the KnockOnOperatorGeneral equation term.
  *
- * These tests focus on invariants and structural correctness:
- *  - Interpolated delta-column conservation.
- *  - Linearity in f_primary.
- *  - Consistency between SetVectorElements() and SetJacobianBlock() for ntot.
- *  - Global production identity combining Delta normalization and Moller S conservation.
+ * The tests are written against the public EquationTerm interface:
+ *  - Rebuild() (explicit-time cache behavior)
+ *  - SetVectorElements() (assembled contribution)
+ *  - SetJacobianBlock() (linearization w.r.t. n_tot)
  *
- * We intentionally allow loose tolerances where appropriate, since production
- * use primarily requires shape correctness and conservation properties.
+ * We intentionally allow modest tolerances in some integration tests since the
+ * production requirement is conservation/shape correctness rather than tight pointwise accuracy.
  */
 
 #include "KnockOnOperatorGeneral.hpp"
 
 #include <cmath>
-#include <limits>
 #include <vector>
 
 #include "DREAM/Equations/Kinetic/KnockOnOperatorGeneral.hpp"
@@ -29,9 +27,13 @@ using namespace DREAMTESTS::_DREAM;
 
 namespace {
 
-constexpr real_t EPS = 5 * std::numeric_limits<real_t>::epsilon();
-
-static void SetPreviousUnknownData(
+/**
+ * Store data into the unknown handler such that GetUnknownDataPrevious(id) returns it.
+ *
+ * NOTE: SaveStep() may be time-sensitive; tests that rely on updating "previous" should
+ * pass a strictly increasing t to ensure the previous buffer is actually advanced.
+ */
+void SetPreviousUnknownData(
     DREAM::FVM::UnknownQuantityHandler *uqh, const len_t id, const real_t *data,
     const real_t t = 0.0
 ) {
@@ -87,10 +89,11 @@ DREAM::FVM::UnknownQuantityHandler *BuildUQH_Minimal(
 }
 
 /**
- * Compute total integrated production:
- *   LHS = sum_{i,j} dp dxi Vp(i,j) * sourceVector(i,j)
+ * Integrate an assembled knock-on contribution over (p,xi) phase space:
+ *   ∑_{i,j} dp dxi Vp(i,j) * vec(i,j)
  *
- * given sourceVector stored on the KNOCKON grid layout.
+ * The input vector must be stored on the knock-on grid layout (Np-major with pitch blocks),
+ * i.e. ind = offset + Np*j + i.
  */
 real_t IntegrateTotalProductionOverKnockonGrid(
     const DREAM::FVM::Grid *grid_knockon, const real_t *sourceVector
@@ -165,6 +168,22 @@ real_t PredictTotalProductionFromMollerS(
     return total;
 }
 
+/**
+ * Apply this term's contribution for a spatially constant n_tot profile.
+ * This calls SetVectorElements() into a zeroed vector so the result contains only this term.
+ */
+void ApplyTerm(
+    DREAM::KnockOnOperatorGeneral &op, const DREAM::FVM::Grid *grid_knockon, const real_t ntot,
+    std::vector<real_t> &out
+) {
+    len_t Nr = grid_knockon->GetNr();
+    std::vector<real_t> ntot_arr;
+    ntot_arr.assign(Nr, ntot);
+    const len_t NK = grid_knockon->GetNCells();
+    out.assign(NK, 0.0);  // ensure we test *this term only*
+    op.SetVectorElements(out.data(), ntot_arr.data());
+}
+
 }  // anonymous namespace
 
 /**
@@ -180,11 +199,11 @@ bool KnockOnOperatorGeneral::Run(bool) {
         this->PrintError("KOG test failed: interpolated delta columns do not normalize to 1.");
     }
 
-    if (CheckKOG_SourceVectorLinearity())
-        this->PrintOK("KOG: sourceVector is linear in f_primary.");
+    if (CheckKOG_LinearityInFPrimary())
+        this->PrintOK("KOG: assembled contribution is linear in f_primary.");
     else {
         success = false;
-        this->PrintError("KOG test failed: sourceVector is not linear in f_primary.");
+        this->PrintError("KOG test failed: assembled contribution is not linear in f_primary.");
     }
 
     if (CheckKOG_JacobianFiniteDifferenceNt())
@@ -200,13 +219,35 @@ bool KnockOnOperatorGeneral::Run(bool) {
         success = false;
         this->PrintError("KOG test failed: global production identity does not match prediction.");
     }
+    if (CheckKOG_TimeCachingRegression())
+        this->PrintOK("KOG: time caching regression test passed.");
+    else {
+        success = false;
+        this->PrintError("KOG test failed: time caching regression.");
+    }
+
+    if (CheckKOG_NonNegativity())
+        this->PrintOK("KOG: non-negativity sanity check passed.");
+    else {
+        success = false;
+        this->PrintError("KOG test failed: non-negativity sanity check.");
+    }
+
+    if (CheckKOG_RadiusLocality())
+        this->PrintOK("KOG: radius locality test passed.");
+    else {
+        success = false;
+        this->PrintError("KOG test failed: radius locality.");
+    }
 
     return success;
 }
 
 /**
- * 1) Interpolated delta column normalization:
- * For random (ir,i,k,l): sum_j dxi_j Delta_interp(j,l; xiStar(p_i,p1_k)) ~= 1
+ * Delta column normalization (pitch redistribution):
+ * For sampled (ir,i,k,l):  Σ_j dxi_j * Delta_interp(j,l; xiStar(p_i,p1_k)) ≈ 1.
+ *
+ * This tests the xi* interpolation/clamping logic together with the tabulated delta planes.
  */
 bool KnockOnOperatorGeneral::CheckKOG_DeltaInterpolationConservation() {
     const real_t tol = 5e-2;
@@ -231,8 +272,11 @@ bool KnockOnOperatorGeneral::CheckKOG_DeltaInterpolationConservation() {
     auto *uqh = BuildUQH_Minimal(gridF, gridP, id_ntot, id_E, id_f);
 
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);  // safe > 0
+    constexpr real_t scalefactor = 1.0;
+    constexpr len_t n_xi_stars_tabulate = 80;
+    constexpr len_t n_points_integral = 80;
     DREAM::KnockOnOperatorGeneral op(
-        gridK, gridP, uqh, id_f, pCutoff, /*n_xi_stars_tabulate*/ 80, /*n_points_integral*/ 80
+        gridK, gridP, uqh, id_f, pCutoff, scalefactor, n_xi_stars_tabulate, n_points_integral
     );
 
     bool success = true;
@@ -278,14 +322,12 @@ bool KnockOnOperatorGeneral::CheckKOG_DeltaInterpolationConservation() {
 }
 
 /**
- * 2) Linearity test:
- * source(fA + fB) == source(fA) + source(fB)
- *
- * This is best done by calling Rebuild() with different "previous" f data and then
- * comparing the operator's internal sourceVector. If sourceVector is private, you
- * can add a lightweight getter in test builds.
+ * Linearity in f_primary:
+ * For fixed n_tot, the assembled contribution satisfies:
+ *   F(fA + fB) ≈ F(fA) + F(fB),
+ * where F is obtained via Rebuild()+SetVectorElements().
  */
-bool KnockOnOperatorGeneral::CheckKOG_SourceVectorLinearity() {
+bool KnockOnOperatorGeneral::CheckKOG_LinearityInFPrimary() {
     const real_t tol = 1e-10;
 
     len_t nr = 2;
@@ -306,65 +348,58 @@ bool KnockOnOperatorGeneral::CheckKOG_SourceVectorLinearity() {
     auto *uqh = BuildUQH_Minimal(gridF, gridP, id_ntot, id_E, id_f);
 
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
-    DREAM::KnockOnOperatorGeneral op(gridK, gridP, uqh, id_f, pCutoff, 60, 80);
 
-    const len_t NpCellsP = gridP->GetNCells();
-    real_t *fA = new real_t[NpCellsP];
-    real_t *fB = new real_t[NpCellsP];
-    real_t *fAB = new real_t[NpCellsP];
+    const real_t scaleFactor = 1.0;
+    const len_t nXiStars = 60;
+    const len_t nIntPts = 80;
+    DREAM::KnockOnOperatorGeneral op(
+        gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts
+    );
 
-    for (len_t i = 0; i < NpCellsP; i++) {
+    // Build fA, fB, fA+fB
+    const len_t NP = gridP->GetNCells();
+    real_t *fA = new real_t[NP];
+    real_t *fB = new real_t[NP];
+    real_t *fAB = new real_t[NP];
+    for (len_t i = 0; i < NP; i++) {
         fA[i] = 0.1 + 0.01 * (real_t)i;
         fB[i] = 0.2 + 0.02 * (real_t)i;
         fAB[i] = fA[i] + fB[i];
     }
 
+    real_t ntot = 1;
     const len_t NK = gridK->GetNCells();
-    std::vector<real_t> SA(NK), SB(NK), SAB(NK);
+    std::vector<real_t> RA, RB, RAB;
 
-    auto CopySourceK = [&](std::vector<real_t> &dst) {
-        const real_t *src = op.GetSourceVector();
-        memcpy(dst.data(), src, NK * sizeof(real_t));
-    };
-
-    // Run rebuild with fA, capture SA
+    // fA
     SetPreviousUnknownData(uqh, id_f, fA, /*t*/ 0.0);
     op.Rebuild(/*t*/ 0.0, /*dt*/ 1.0, uqh);
-    CopySourceK(SA);
+    ApplyTerm(op, gridK, ntot, RA);
 
-    // Run rebuild with fB, capture SB
+    // fB
     SetPreviousUnknownData(uqh, id_f, fB, /*t*/ 1.0);
     op.Rebuild(/*t*/ 1.0, /*dt*/ 1.0, uqh);
-    CopySourceK(SB);
+    ApplyTerm(op, gridK, ntot, RB);
 
-    // Run rebuild with fAB, capture SAB
+    // fA+fB
     SetPreviousUnknownData(uqh, id_f, fAB, /*t*/ 2.0);
     op.Rebuild(/*t*/ 2.0, /*dt*/ 1.0, uqh);
-    CopySourceK(SAB);
-    bool success = true;
+    ApplyTerm(op, gridK, ntot, RAB);
 
-    // Compare SAB ~ SA + SB
-    len_t offset = 0;
-    for (len_t ir=0; ir<gridK->GetNr(); ir++){
-        auto *mg = gridK->GetMomentumGrid(ir);
-        for (len_t j=0; j<mg->GetNp2(); j++){
-            for (len_t i=0; i<mg->GetNp1(); i++){
-                len_t idx = offset + mg->GetNp1()*j + i;
-                real_t diff = fabs(SAB[idx] - (SA[idx] + SB[idx]));
-                if (diff > tol * (1 + fabs(SAB[idx]))) {
-                    printf("Test failed (ir=%ld, i=%ld, j=%ld):\n", ir, i, j);
-                    printf("  diff = %.8g:\n", diff);
-                    printf("  tol = %.8g\n", tol * (1 + fabs(SAB[idx])));
-                    printf("  SA = %.8g\n", SA[idx]);
-                    printf("  SB = %.8g\n", SB[idx]);
-                    printf("  SAB = %.8g\n", SAB[idx]);
-                    success = false;
-                    break;
-                }
-            }
+    bool success = true;
+    for (len_t q = 0; q < NK; q++) {
+        const real_t lhs = RAB[q];
+        const real_t rhs = RA[q] + RB[q];
+        const real_t diff = fabs(lhs - rhs);
+        if (diff > tol * (1 + fabs(lhs))) {
+            this->PrintError(
+                "Linearity failed at q=%ld: lhs=%.8g rhs=%.8g diff=%.8g\n", (long)q, lhs, rhs, diff
+            );
+            success = false;
+            break;
         }
-        offset += mg->GetNCells();
     }
+
     delete[] fA;
     delete[] fB;
     delete[] fAB;
@@ -406,7 +441,12 @@ bool KnockOnOperatorGeneral::CheckKOG_JacobianFiniteDifferenceNt() {
     auto *uqh = BuildUQH_Minimal(gridF, gridP, id_ntot, id_E, id_f);
 
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
-    DREAM::KnockOnOperatorGeneral op(gridK, gridP, uqh, id_f, pCutoff, 60, 80);
+    constexpr real_t scalefactor = 1.0;
+    constexpr len_t n_xi_stars_tabulate = 80;
+    constexpr len_t n_points_integral = 80;
+    DREAM::KnockOnOperatorGeneral op(
+        gridK, gridP, uqh, id_f, pCutoff, scalefactor, n_xi_stars_tabulate, n_points_integral
+    );
 
     // Set some f_primary in previous and rebuild source
     const len_t NP = gridP->GetNCells();
@@ -475,12 +515,12 @@ bool KnockOnOperatorGeneral::CheckKOG_JacobianFiniteDifferenceNt() {
 }
 
 /**
- * 4) Global production identity:
- * LHS = ∑_{i,j} dp dxi Vp * sourceVector(i,j)
+ * Global production identity (integration test):
+ * LHS = ∑_{i,j} dp dxi Vp * vec(i,j),  with vec from SetVectorElements() at n_tot=1.
  * RHS = ∑_{k,l} dp1 dxi1 Vp1 f(k,l) * [∑_i dp S_{ik}]
  *
- * This combines Delta normalization and Moller S conservation into a single
- * integration test for the assembled source.
+ * This combines delta normalization and Møller S "flux" conservation into a single check
+ * on the assembled source term.
  */
 bool KnockOnOperatorGeneral::CheckKOG_GlobalProductionIdentity() {
     const real_t rtol = 5e-2;
@@ -504,44 +544,319 @@ bool KnockOnOperatorGeneral::CheckKOG_GlobalProductionIdentity() {
     auto *uqh = BuildUQH_Minimal(gridF, gridP, id_ntot, id_E, id_f);
 
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
-    DREAM::KnockOnOperatorGeneral op(gridK, gridP, uqh, id_f, pCutoff, 80, 80);
 
-    // Choose a simple positive f_primary
+    const real_t scaleFactor = 1.0;
+    const len_t nXiStars = 80;
+    const len_t nIntPts = 80;
+    DREAM::KnockOnOperatorGeneral op(
+        gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts
+    );
+
+    // f_primary >= 0
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
-    for (len_t i = 0; i < NP; i++) {
-        f[i] = 1e-3;
-    }
+    for (len_t i = 0; i < NP; i++) f[i] = 1e-3;
 
-    // Install as "previous" and rebuild
+    // Install as previous and rebuild cached source
     SetPreviousUnknownData(uqh, id_f, f, /*t*/ 0.0);
     op.Rebuild(/*t*/ 0.0, /*dt*/ 1.0, uqh);
 
-    // Get operator internal sourceVector. Add a test-only getter if needed.
-    // const real_t *source = op.GetSourceVector();
-    const real_t *source = op.GetSourceVector();
+    real_t ntot = 1;
+    std::vector<real_t> vec;
+    ApplyTerm(op, gridK, ntot, vec);
 
-    // LHS: integrate over knock-on phase space with Vp measure
-    real_t LHS = 0.0;
-    if (source != nullptr) LHS = IntegrateTotalProductionOverKnockonGrid(gridK, source);
+    // LHS: integrate vec over knock-on phase space with Vp measure
+    const real_t LHS = IntegrateTotalProductionOverKnockonGrid(gridK, vec.data());
 
-    // RHS: predicted from sigmaTot(k) and integrated primary weight
-    real_t RHS = PredictTotalProductionFromMollerS(gridK, gridP, f, pCutoff);
+    // RHS: predicted production from Moller S (same f_primary) times scaleFactor
+    const real_t RHS0 = PredictTotalProductionFromMollerS(gridK, gridP, f, pCutoff);
+    const real_t RHS = scaleFactor * RHS0;
+
+    const real_t diff = fabs(LHS - RHS);
+    const bool success = (diff <= atol + rtol * (fabs(LHS) + fabs(RHS)));
+    if (!success) {
+        this->PrintError("Global identity failed:\n");
+        this->PrintError("  LHS: %.8g\n", LHS);
+        this->PrintError("  RHS: %.8g\n", RHS);
+        this->PrintError("  diff: %.8g\n", diff);
+    }
+
+    delete[] f;
+
+    delete uqh;
+    delete gridF;
+    delete gridK;
+    delete gridP;
+
+    return success;
+}
+
+/**
+ * Explicit-time caching regression:
+ * Rebuild() should only refresh the cached source when t changes.
+ * This test also verifies linear scaling of the assembled contribution when f_primary is scaled.
+ */
+bool KnockOnOperatorGeneral::CheckKOG_TimeCachingRegression() {
+    const real_t rtol = 1e-12;
+
+    len_t nr = 2;
+    len_t np = 6;
+    len_t nxi = 12;
+
+    len_t ntheta_interp = 50;
+    len_t nrProfiles = 8;
+    real_t pMin = 0;
+    real_t pMax = 3;
+
+    real_t B0 = 1.0;
+    auto *gridF = InitializeFluidGrid(nr, B0);
+    auto *gridK = InitializeGridGeneralRPXi(nr, np, nxi, ntheta_interp, nrProfiles, pMin, pMax);
+    auto *gridP = InitializeGridGeneralRPXi(nr, np, nxi, ntheta_interp, nrProfiles, pMin, pMax);
+
+    len_t id_ntot, id_E, id_f;
+    auto *uqh = BuildUQH_Minimal(gridF, gridP, id_ntot, id_E, id_f);
+
+    const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
+    const real_t scaleFactor = 1.0;
+    const len_t nXiStars = 60;
+    const len_t nIntPts = 60;
+    DREAM::KnockOnOperatorGeneral op(
+        gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts
+    );
+
+    const len_t NP = gridP->GetNCells();
+    real_t *fA = new real_t[NP];
+    real_t *fB = new real_t[NP];
+
+    // Make sure the two cases differ clearly
+    for (len_t i = 0; i < NP; i++) {
+        fA[i] = 1e-3;
+        fB[i] = 2e-3;
+    }
+
+    std::vector<real_t> vecA, vecSameT, vecNewT;
+    real_t ntot = 1.0;
+
+    real_t dt = 1.0;
+    real_t t1 = 1.0;
+    real_t t2 = 2.0;
+    // Build with fA at t=0
+    SetPreviousUnknownData(uqh, id_f, fA, t1 - dt);
+    op.Rebuild(t1, dt, uqh);
+    ApplyTerm(op, gridK, ntot, vecA);
+
+    // Update previous buffer to fB but keep the same t=0 -> should NOT rebuild
+    SetPreviousUnknownData(uqh, id_f, fB, t1);
+    op.Rebuild(t1, dt, uqh);
+    ApplyTerm(op, gridK, ntot, vecSameT);
+
+    // Now change time -> should rebuild using fB
+    op.Rebuild(t2, dt, uqh);
+    ApplyTerm(op, gridK, ntot, vecNewT);
+
+    // Check vecSameT == vecA (cache held)
+    real_t maxRef = 0.0, maxDiffSame = 0.0, maxDiffNew = 0.0;
+    for (len_t q = 0; q < (len_t)vecA.size(); q++) {
+        maxRef = std::max(maxRef, fabs(vecA[q]));
+        maxDiffSame = std::max(maxDiffSame, fabs(vecSameT[q] - vecA[q]));
+        maxDiffNew = std::max(maxDiffNew, fabs(vecNewT[q] - 2.0 * vecA[q]));  // since fB=2*fA
+    }
 
     bool success = true;
-    if (source == nullptr) {
-        // Until you expose sourceVector, the test can't run fully.
-        // Treat as failure so you remember to wire it.
+    if (maxDiffSame > rtol * (1.0 + maxRef)) {
+        this->PrintError("Time-caching failed: vec changed despite same t.\n");
+        this->PrintError("  maxDiffSame=%.8g maxRef=%.8g\n", maxDiffSame, maxRef);
         success = false;
-    } else {
-        const real_t diff = fabs(LHS - RHS);
-        if (diff > atol + rtol * (fabs(LHS) + fabs(RHS))) {
-            this->PrintError("Global identity failed:\n");
-            this->PrintError("  LHS: %.8g\n", LHS);
-            this->PrintError("  RHS: %.8g\n", RHS);
-            this->PrintError("  diff: %.8g\n", diff);
-            success = false;
+    }
+    if (maxDiffNew > rtol * (1.0 + 2.0 * maxRef)) {
+        this->PrintError("Time-caching failed: vec after t-change not consistent with f scaling.\n"
+        );
+        this->PrintError("  maxDiffNew=%.8g maxRef=%.8g\n", maxDiffNew, maxRef);
+        success = false;
+    }
+
+    delete[] fA;
+    delete[] fB;
+
+    delete uqh;
+    delete gridF;
+    delete gridK;
+    delete gridP;
+
+    return success;
+}
+
+/**
+ * Non-negativity sanity:
+ * For f_primary >= 0 and n_tot >= 0, the assembled contribution should be >= 0
+ * up to small numerical noise from interpolation/quadrature.
+ */
+bool KnockOnOperatorGeneral::CheckKOG_NonNegativity() {
+    // allow tiny negative due to interpolation/roundoff
+    const real_t absTol = 1e-13;
+
+    len_t nr = 2;
+    len_t np = 10;
+    len_t nxi = 16;
+
+    len_t ntheta_interp = 50;
+    len_t nrProfiles = 8;
+    real_t pMin = 0;
+    real_t pMax = 3;
+
+    real_t B0 = 1.0;
+    auto *gridF = InitializeFluidGrid(nr, B0);
+    auto *gridK = InitializeGridGeneralRPXi(nr, np, nxi, ntheta_interp, nrProfiles, pMin, pMax);
+    auto *gridP = InitializeGridGeneralRPXi(nr, np, nxi, ntheta_interp, nrProfiles, pMin, pMax);
+
+    len_t id_ntot, id_E, id_f;
+    auto *uqh = BuildUQH_Minimal(gridF, gridP, id_ntot, id_E, id_f);
+
+    const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
+    const real_t scaleFactor = 1.0;
+    const len_t nXiStars = 60;
+    const len_t nIntPts = 60;
+    DREAM::KnockOnOperatorGeneral op(
+        gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts
+    );
+
+    // Positive f_primary
+    const len_t NP = gridP->GetNCells();
+    real_t *f = new real_t[NP];
+    for (len_t i = 0; i < NP; i++) f[i] = 1e-3;
+
+    SetPreviousUnknownData(uqh, id_f, f, /*t*/ 0.0);
+    op.Rebuild(/*t*/ 0.0, /*dt*/ 1.0, uqh);
+
+    std::vector<real_t> vec;
+    ApplyTerm(op, gridK, /*ntot*/ 1.0, vec);
+
+    bool success = true;
+    real_t minVal = 1e300;
+    len_t minIdx = 0;
+
+    for (len_t q = 0; q < (len_t)vec.size(); q++) {
+        if (vec[q] < minVal) {
+            minVal = vec[q];
+            minIdx = q;
         }
+    }
+
+    if (minVal < -absTol) {
+        this->PrintError("Non-negativity failed: min(vec)=%.8g at q=%ld\n", minVal, (long)minIdx);
+        success = false;
+    }
+
+    delete[] f;
+
+    delete uqh;
+    delete gridF;
+    delete gridK;
+    delete gridP;
+
+    return success;
+}
+
+/**
+ * Radius locality:
+ * Only the phase-space block belonging to radius ir depends on n_tot[ir].
+ * Setting n_tot nonzero at a single radius must not affect other radius blocks.
+ */
+bool KnockOnOperatorGeneral::CheckKOG_RadiusLocality() {
+    const real_t absTol = 1e-14;
+    const real_t relTol = 1e-12;
+
+    len_t nr = 3;
+    len_t np = 8;
+    len_t nxi = 12;
+
+    len_t ntheta_interp = 50;
+    len_t nrProfiles = 8;
+    real_t pMin = 0;
+    real_t pMax = 3;
+
+    real_t B0 = 1.0;
+    auto *gridF = InitializeFluidGrid(nr, B0);
+    auto *gridK = InitializeGridGeneralRPXi(nr, np, nxi, ntheta_interp, nrProfiles, pMin, pMax);
+    auto *gridP = InitializeGridGeneralRPXi(nr, np, nxi, ntheta_interp, nrProfiles, pMin, pMax);
+
+    len_t id_ntot, id_E, id_f;
+    auto *uqh = BuildUQH_Minimal(gridF, gridP, id_ntot, id_E, id_f);
+
+    const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
+    const real_t scaleFactor = 1.0;
+    const len_t nXiStars = 60;
+    const len_t nIntPts = 60;
+    DREAM::KnockOnOperatorGeneral op(
+        gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts
+    );
+
+    // Positive f_primary
+    const len_t NP = gridP->GetNCells();
+    real_t *f = new real_t[NP];
+    for (len_t i = 0; i < NP; i++) f[i] = 1e-3;
+
+    SetPreviousUnknownData(uqh, id_f, f, /*t*/ 0.0);
+    op.Rebuild(/*t*/ 0.0, /*dt*/ 1.0, uqh);
+
+    // vecAll: ntot=1 everywhere (use your helper)
+    std::vector<real_t> vecAll;
+    ApplyTerm(op, gridK, /*ntot*/ 1.0, vecAll);
+
+    // vecLocal: ntot nonzero only at ir0
+    const len_t NK = gridK->GetNCells();
+    std::vector<real_t> vecLocal(NK, 0.0);
+    std::vector<real_t> ntot_arr(nr, 0.0);
+
+    const len_t ir0 = 1;
+    ntot_arr[ir0] = 1.0;
+    op.SetVectorElements(vecLocal.data(), ntot_arr.data());
+
+    // Check locality by radius blocks
+    bool success = true;
+    len_t offset = 0;
+    for (len_t ir = 0; ir < nr; ir++) {
+        const auto *mg = gridK->GetMomentumGrid(ir);
+        const len_t nCells = mg->GetNCells();
+        const len_t start = offset;
+        const len_t end = offset + nCells;
+
+        if (ir != ir0) {
+            // Outside ir0 block: must be ~0
+            real_t maxAbs = 0.0;
+            for (len_t q = start; q < end; q++) {
+                const real_t a = fabs(vecLocal[q]);
+                if (a > maxAbs) maxAbs = a;
+            }
+            if (maxAbs > absTol) {
+                this->PrintError(
+                    "Radius locality failed: ir=%ld has leakage maxAbs=%.8g\n", (long)ir, maxAbs
+                );
+                success = false;
+                break;
+            }
+        } else {
+            // Inside ir0 block: should match vecAll (since ntot=1 there too)
+            real_t maxDiff = 0.0;
+            real_t maxRef = 0.0;
+            for (len_t q = start; q < end; q++) {
+                const real_t diff = fabs(vecLocal[q] - vecAll[q]);
+                if (diff > maxDiff) maxDiff = diff;
+                const real_t ref = fabs(vecAll[q]);
+                if (ref > maxRef) maxRef = ref;
+            }
+            const real_t thresh = absTol + relTol * (1.0 + maxRef);
+            if (maxDiff > thresh) {
+                this->PrintError("Radius locality failed: ir0 block mismatch.\n");
+                this->PrintError(
+                    "  maxDiff=%.8g thresh=%.8g (maxRef=%.8g)\n", maxDiff, thresh, maxRef
+                );
+                success = false;
+                break;
+            }
+        }
+
+        offset += nCells;
     }
 
     delete[] f;
