@@ -30,7 +30,7 @@ namespace DREAM { class OtherQuantityHandler; }
 #include "DREAM/Equations/Fluid/IonFluidRunawayIonizationTerm.hpp"
 #include "DREAM/Equations/Kinetic/ComptonSource.hpp"
 #include "DREAM/Equations/Kinetic/AvalancheSourceRP.hpp"
-#include "DREAM/Equations/Kinetic/KnockOnOperatorGeneral.hpp"
+#include "DREAM/Equations/Kinetic/MollerBoltzmannOperator.hpp"
 #include "DREAM/Equations/Kinetic/RipplePitchScattering.hpp"
 #include "DREAM/Equations/Kinetic/SynchrotronTerm.hpp"
 #include "DREAM/Equations/Kinetic/TimeVaryingBTerm.hpp"

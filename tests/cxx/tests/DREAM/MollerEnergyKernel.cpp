@@ -12,10 +12,10 @@ bool MollerEnergyKernel::Run(bool) {
     bool success = true;
 
     if (CheckMEK_MollerKernelConservation())
-        this->PrintOK("MEK: Moller kernel integrates to total cross section.");
+        this->PrintOK("Moller kernel integrates to total cross section.");
     else {
         success = false;
-        this->PrintError("MEK test failed: Moller kernel does not integrate to total cross section.");
+        this->PrintError("Test failed: Moller kernel does not integrate to total cross section.");
     }
 
     return success;

@@ -12,10 +12,10 @@ bool MollerDeltaAngleKernel::Run(bool) {
     bool success = true;
 
     if (CheckMDK_DeltaInterpolationConservation())
-        this->PrintOK("MDK: interpolated delta columns preserve normalization.");
+        this->PrintOK("Interpolated delta columns preserve normalization.");
     else {
         success = false;
-        this->PrintError("MDK test failed: interpolated delta columns do not normalize to 1.");
+        this->PrintError("Test failed: interpolated delta columns do not normalize to 1.");
     }
 
     return success;

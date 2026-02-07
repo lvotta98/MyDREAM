@@ -21,7 +21,7 @@
 #include "tests/DREAM/BoundaryFlux.hpp"
 #include "tests/DREAM/IonRateEquation.hpp"
 #include "tests/DREAM/KnockOn.hpp"
-#include "tests/DREAM/KnockOnOperatorGeneral.hpp"
+#include "tests/DREAM/MollerBoltzmannOperator.hpp"
 #include "tests/DREAM/MollerEnergyKernel.hpp"
 #include "tests/DREAM/MollerDeltaAngleKernel.hpp"
 #include "tests/DREAM/MeanExcitationEnergy.hpp"

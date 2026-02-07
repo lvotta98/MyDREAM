@@ -112,7 +112,7 @@ set(dream_equations
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/ElectricFieldTerm.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/ElectricFieldDiffusionTerm.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/EnergyDiffusionTerm.cpp"
-    "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/KnockOnOperatorGeneral.cpp"
+    "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/MollerBoltzmannOperator.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/MollerDeltaAngleKernel.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/MollerEnergyKernel.cpp"
     "${PROJECT_SOURCE_DIR}/src/Equations/Kinetic/PitchScatterTerm.cpp"

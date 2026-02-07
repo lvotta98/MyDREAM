@@ -1,10 +1,10 @@
-#include "KnockOnOperatorGeneral.hpp"
+#include "MollerBoltzmannOperator.hpp"
 
 #include <cmath>
 #include <vector>
 #include <algorithm>
 
-#include "DREAM/Equations/Kinetic/KnockOnOperatorGeneral.hpp"
+#include "DREAM/Equations/Kinetic/MollerBoltzmannOperator.hpp"
 #include "DREAM/Settings/OptionConstants.hpp"
 #include "FVM/Grid/Grid.hpp"
 #include "FVM/Grid/MomentumGrid.hpp"
@@ -35,52 +35,52 @@ bool MollerBoltzmannOperator::Run(bool) {
     bool success = true;
 
     if (CheckBO_LinearityInFPrimary())
-        this->PrintOK("BO: assembled contribution is linear in f_primary.");
+        this->PrintOK("Assembled contribution is linear in f_primary.");
     else {
         success = false;
-        this->PrintError("BO test failed: assembled contribution is not linear in f_primary.");
+        this->PrintError("Test failed: assembled contribution is not linear in f_primary.");
     }
 
     if (CheckBO_JacobianFiniteDifferenceNt())
-        this->PrintOK("BO: Jacobian w.r.t. n_tot matches finite-difference derivative.");
+        this->PrintOK("Jacobian w.r.t. n_tot matches finite-difference derivative.");
     else {
         success = false;
-        this->PrintError("BO test failed: Jacobian w.r.t. n_tot does not match FD.");
+        this->PrintError("Test failed: Jacobian w.r.t. n_tot does not match FD.");
     }
 
     if (CheckBO_GlobalProductionIdentity())
-        this->PrintOK("BO: global production identity matches Moller-S prediction.");
+        this->PrintOK("Global production identity matches Moller-S prediction.");
     else {
         success = false;
-        this->PrintError("BO test failed: global production identity does not match prediction.");
+        this->PrintError("Test failed: global production identity does not match prediction.");
     }
 
     if (CheckBO_HotRunawayGlobalProductionIdentity())
-        this->PrintOK("BO: hot<-runaway (cross-grid) global identity passed.");
+        this->PrintOK("hot<-runaway (cross-grid) global identity passed.");
     else {
         success = false;
-        this->PrintError("BO test failed: hot<-runaway (cross-grid) global identity.");
+        this->PrintError("Test failed: hot<-runaway (cross-grid) global identity.");
     }
 
     if (CheckBO_TimeCachingRegression())
-        this->PrintOK("BO: time caching regression test passed.");
+        this->PrintOK("Time caching regression test passed.");
     else {
         success = false;
-        this->PrintError("BO test failed: time caching regression.");
+        this->PrintError("Test failed: time caching regression.");
     }
 
     if (CheckBO_NonNegativity())
-        this->PrintOK("BO: non-negativity sanity check passed.");
+        this->PrintOK("Non-negativity sanity check passed.");
     else {
         success = false;
-        this->PrintError("BO test failed: non-negativity sanity check.");
+        this->PrintError("Test failed: non-negativity sanity check.");
     }
 
     if (CheckBO_RadiusLocality())
-        this->PrintOK("BO: radius locality test passed.");
+        this->PrintOK("Radius locality test passed.");
     else {
         success = false;
-        this->PrintError("BO test failed: radius locality.");
+        this->PrintError("Test failed: radius locality.");
     }
 
     return success;

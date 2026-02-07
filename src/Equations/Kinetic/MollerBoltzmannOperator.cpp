@@ -1,4 +1,4 @@
-#include "DREAM/Equations/Kinetic/KnockOnOperatorGeneral.hpp"
+#include "DREAM/Equations/Kinetic/MollerBoltzmannOperator.hpp"
 
 #include <cmath>
 #include <limits>
