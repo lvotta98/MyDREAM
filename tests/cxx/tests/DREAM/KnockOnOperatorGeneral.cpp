@@ -80,7 +80,9 @@ DREAM::FVM::UnknownQuantityHandler *BuildUQH_Minimal(
     {
         const len_t N = grid_primary->GetNCells();
         real_t *f0 = new real_t[N];
-        for (len_t i = 0; i < N; i++) f0[i] = 0.0;
+        for (len_t idx = 0; idx < N; idx++) {
+            f0[idx] = 0.0;
+        }
         uqh->SetInitialValue(DREAM::OptionConstants::UQTY_F_HOT, f0);
         delete[] f0;
     }
@@ -123,7 +125,9 @@ DREAM::FVM::UnknownQuantityHandler *BuildUQH_MinimalFRe(
     {
         const len_t N = grid_runaway->GetNCells();
         real_t *f0 = new real_t[N];
-        for (len_t i = 0; i < N; i++) f0[i] = 0.0;
+        for (len_t idx = 0; idx < N; idx++) {
+            f0[idx] = 0.0;
+        }
         uqh->SetInitialValue(DREAM::OptionConstants::UQTY_F_RE, f0);
         delete[] f0;
     }
@@ -292,7 +296,7 @@ bool KnockOnOperatorGeneral::Run(bool) {
  * and verify:
  *   Σ_j dxi_j outPitch_j[j] = 1   (for non-void primary pitch cells l)
  *   Σ_j dxi_j outPitch_j[j] = 0   (for void primary pitch cells l)
- * 
+ *
  * Effectively extracts the angle kernel by setting sigma=1 and the distribution
  * as a delta function at each pitch.
  */
@@ -341,18 +345,16 @@ bool KnockOnOperatorGeneral::CheckKOG_DeltaInterpolationConservation() {
         std::vector<real_t> W_l(NxiP, 0.0);
         std::vector<real_t> outPitch(NxiK, 0.0);
 
-        for (len_t i = 0; i < NpK; i += std::max((len_t)1, NpK / 3)) {
-            for (len_t k = 0; k < NpP; k += std::max((len_t)1, NpP / 3)) {
-                for (len_t l = 0; l < NxiP; l += std::max((len_t)1, NxiP / 4)) {
+        for (len_t i = 0; i < NpK; i++) {
+            for (len_t k = 0; k < NpP; k++) {
+                for (len_t l = 0; l < NxiP; l++) {
                     // W_l = e_l to select exactly column l
                     std::fill(W_l.begin(), W_l.end(), 0.0);
                     W_l[l] = 1.0;
 
                     // outPitch = 0 then accumulate using the same interpolation path as assembly
                     std::fill(outPitch.begin(), outPitch.end(), 0.0);
-                    op.AccumulateAngleKernel(
-                        ir, i, k, W_l.data(), /*Sik=*/1.0, outPitch.data()
-                    );
+                    op.AccumulateAngleKernel(ir, i, k, W_l.data(), /*Sik=*/1.0, outPitch.data());
 
                     // Integral over knock-on pitch: Σ_j dxi_j * Δ_{j l}
                     real_t sum = 0.0;
@@ -361,7 +363,6 @@ bool KnockOnOperatorGeneral::CheckKOG_DeltaInterpolationConservation() {
                     }
 
                     const bool primaryVoid = (gridP->GetVpOverP2AtZero(ir)[l] == 0);
-
                     if (primaryVoid) {
                         // should contribute nothing at all
                         if (fabs(sum) != 0) {
@@ -400,9 +401,9 @@ bool KnockOnOperatorGeneral::CheckKOG_MollerKernelConservation() {
 
     len_t nr = 2;
     len_t npK = 40;
-    len_t nxiK = 5;
+    len_t nxiK = 9;
     len_t npP = 25;
-    len_t nxiP = 7;
+    len_t nxiP = 11;
 
     len_t ntheta_interp = 50;
     len_t nrProfiles = 8;
@@ -659,8 +660,8 @@ bool KnockOnOperatorGeneral::CheckKOG_GlobalProductionIdentity() {
     const real_t atol = 1e-14;
 
     len_t nr = 2;
-    len_t np = 20;
-    len_t nxi = 10;
+    len_t np = 15;
+    len_t nxi = 30;
 
     len_t ntheta_interp = 50;
     len_t nrProfiles = 8;
@@ -675,7 +676,8 @@ bool KnockOnOperatorGeneral::CheckKOG_GlobalProductionIdentity() {
     len_t id_ntot, id_E, id_f;
     auto *uqh = BuildUQH_Minimal(gridF, gridP, id_ntot, id_E, id_f);
 
-    const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
+    auto *mgK = gridK->GetMomentumGrid(0);
+    const real_t pCutoff = mgK->GetP1_f(2);
 
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 80;
@@ -687,12 +689,9 @@ bool KnockOnOperatorGeneral::CheckKOG_GlobalProductionIdentity() {
     // f_primary >= 0
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
-    for (len_t i = 0; i < NP; i++) f[i] = 1e20;
-
-    for (len_t i = 0; i < NP; i++) f[i] = 0;
-
-    f[np*1 + np-2] = 1e20;
-
+    for (len_t i = 0; i < NP; i++) {
+        f[i] = 1e20;
+    }
     // Install as previous and rebuild cached source
     SetPreviousUnknownData(uqh, id_f, f, /*t*/ 0.0);
     op.Rebuild(/*t*/ 0.0, /*dt*/ 1.0, uqh);
@@ -707,13 +706,6 @@ bool KnockOnOperatorGeneral::CheckKOG_GlobalProductionIdentity() {
     // RHS: predicted production from Moller S (same f_primary) times scaleFactor
     const real_t RHS0 = PredictTotalProductionFromMollerS(gridK, gridP, f, pCutoff);
     const real_t RHS = scaleFactor * RHS0;
-    this->PrintStatus("LHS = %.16g", LHS);
-    this->PrintStatus("RHS = %.16g", RHS);
-    this->PrintStatus("NpK = %ld", gridK->GetNp1(0));
-    this->PrintStatus("NpP = %ld", gridP->GetNp1(0));
-    this->PrintStatus("NxiK = %ld", gridK->GetNp2(0));
-    this->PrintStatus("NxiP = %ld", gridP->GetNp2(0));
-
     const real_t diff = fabs(LHS - RHS);
     const bool success = (diff <= atol + rtol * (fabs(LHS) + fabs(RHS)));
     if (!success) {
@@ -785,9 +777,9 @@ bool KnockOnOperatorGeneral::CheckKOG_HotRunawayGlobalProductionIdentity() {
     // Build a positive runaway primary distribution.
     const len_t NRe = gridRe->GetNCells();
     real_t *f = new real_t[NRe];
-    for (len_t i = 0; i < NRe; i++) {
+    for (len_t idx = 0; idx < NRe; idx++) {
         // mildly varying to avoid accidental symmetry
-        f[i] = 1e20 * (1.0 + 0.1 * (real_t)(i % 7));
+        f[idx] = 1e20 * (1.0 + 0.1 * (real_t)(idx % 7));
     }
 
     // Ensure "previous" really updates (SaveStep can be time-sensitive).
@@ -828,9 +820,6 @@ bool KnockOnOperatorGeneral::CheckKOG_HotRunawayGlobalProductionIdentity() {
     // RHS = ∫ f_re over primary phase space, weighted by sigmaTot(k)=∫ S_{ik} dp
     const real_t RHS0 = PredictTotalProductionFromMollerS(gridHot, gridRe, f, pCutoff);
     const real_t RHS = scaleFactor * ntot * RHS0;
-    this->PrintStatus("LHS = %.16g", LHS);
-    this->PrintStatus("RHS = %.16g", RHS);
-
     const real_t diff = fabs(LHS - RHS);
     if (diff > atol + rtol * (fabs(LHS) + fabs(RHS))) {
         this->PrintError("hot<-re global identity failed:");
@@ -888,9 +877,9 @@ bool KnockOnOperatorGeneral::CheckKOG_TimeCachingRegression() {
     real_t *fB = new real_t[NP];
 
     // Make sure the two cases differ clearly
-    for (len_t i = 0; i < NP; i++) {
-        fA[i] = 1e20;
-        fB[i] = 2e20;
+    for (len_t idx = 0; idx < NP; idx++) {
+        fA[idx] = 1e20;
+        fB[idx] = 2e20;
     }
 
     std::vector<real_t> vecA, vecSameT, vecNewT;
@@ -981,8 +970,9 @@ bool KnockOnOperatorGeneral::CheckKOG_NonNegativity() {
     // Positive f_primary
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
-    for (len_t i = 0; i < NP; i++) f[i] = 1e20;
-
+    for (len_t idx = 0; idx < NP; idx++) {
+        f[idx] = 1e20;
+    }
     SetPreviousUnknownData(uqh, id_f, f, /*t*/ 0.0);
     op.Rebuild(/*t*/ 0.0, /*dt*/ 1.0, uqh);
 
@@ -1071,7 +1061,9 @@ bool KnockOnOperatorGeneral::CheckKOG_RadiusLocality() {
     // Positive f_primary
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
-    for (len_t i = 0; i < NP; i++) f[i] = 1e20;
+    for (len_t idx = 0; idx < NP; idx++) {
+        f[idx] = 1e20;
+    }
 
     SetPreviousUnknownData(uqh, id_f, f, /*t*/ 0.0);
     op.Rebuild(/*t*/ 0.0, /*dt*/ 1.0, uqh);
