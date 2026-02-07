@@ -10,8 +10,8 @@
 using namespace DREAM;
 
 MollerDeltaAngleKernel::MollerDeltaAngleKernel(
-    const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t p_cutoff, len_t n_xi_stars_tabulate,
-    len_t n_points_integral
+    const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t p_cutoff,
+    len_t n_xi_stars_tabulate, len_t n_points_integral
 )
     : gridK(grid_knockon),
       gridP(grid_primary),
@@ -302,12 +302,9 @@ MollerDeltaAngleKernel::DeltaInterp MollerDeltaAngleKernel::GetDeltaInterp(
  *    linearly in that table and apply to the distribution.
  */
 void MollerDeltaAngleKernel::AccumulatePitch(
-    len_t ir, len_t i, len_t k,
-    const real_t *Wkl, real_t sigma_ik,
-    real_t *Cj
+    len_t ir, len_t i, len_t k, const real_t *Wkl, real_t sigma_ik, real_t *Cj
 ) const {
-    if (sigma_ik == 0)
-        return;
+    if (sigma_ik == 0) return;
 
     const auto *mgK = gridK->GetMomentumGrid(ir);
     const auto *mgP = gridP->GetMomentumGrid(ir);

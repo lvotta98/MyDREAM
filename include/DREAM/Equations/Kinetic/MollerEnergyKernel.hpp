@@ -10,9 +10,6 @@ namespace DREAM {
  * Helper which owns the (i,k) Møller momentum-space kernel integrated
  * over outgoing p-cells:
  *   S_{ik} = ∫_{cell i} dσ/dp ...   (as provided by KnockOnUtilities)
- *
- * Note: in the original implementation this is built on radius 0 and
- * reused for all radii (requiring uniform momentum resolution across radii).
  */
 class MollerEnergyKernel {
    private:
@@ -20,6 +17,7 @@ class MollerEnergyKernel {
     const FVM::Grid *gridP = nullptr;
     real_t pCutoff = 0;
 
+    // table of cell-averaged differential cross sections
     real_t *Sik = nullptr;  // size: NpK0 * NpP0
     len_t NpK0 = 0;
     len_t NpP0 = 0;
@@ -29,7 +27,9 @@ class MollerEnergyKernel {
     void ValidateGridAssumptions() const;
 
    public:
-    MollerEnergyKernel(const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t p_cutoff);
+    MollerEnergyKernel(
+        const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t p_cutoff
+    );
     ~MollerEnergyKernel();
 
     void GridRebuilt();

@@ -30,7 +30,6 @@ void MollerEnergyKernel::ValidateInputParameters() const {
     }
 }
 
-
 void DREAM::MollerEnergyKernel::ValidateGridAssumptions() const {
     if (gridK == nullptr || gridP == nullptr)
         throw DREAMException("MollerEnergyKernel: grid pointers must not be null.");
@@ -40,8 +39,7 @@ void DREAM::MollerEnergyKernel::ValidateGridAssumptions() const {
 
     const len_t NrK = gridK->GetNr();
     const len_t NrP = gridP->GetNr();
-    if (NrK != NrP)
-        throw DREAMException("MollerEnergyKernel: gridK and gridP must have same Nr.");
+    if (NrK != NrP) throw DREAMException("MollerEnergyKernel: gridK and gridP must have same Nr.");
 
     // Enforce uniform momentum resolution across radii (same as operator assumption).
     for (len_t ir = 1; ir < NrK; ++ir) {

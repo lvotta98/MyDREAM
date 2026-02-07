@@ -127,126 +127,125 @@ void MollerBoltzmannOperator::BuildPrimaryWeights(
 /**
  * Assemble the explicit-time Boltzmann source on the knock-on grid from f_primary.
  *
-* Key idea:
+ * Key idea:
  *  - First precompute W_{k l} = dp1_k dxi_l Vp_{k l} f_{k l} for each radius,
  *    then for each outgoing momentum cell i, accumulate C_j by looping over k and
  *    applying the interpolated delta kernel over pitch.
  */
 void MollerBoltzmannOperator::SetSourceVector(const real_t *f_primary) {
-        len_t offK = 0;
-        len_t offP = 0;
+    len_t offK = 0;
+    len_t offP = 0;
 
-        const len_t Nr = grid->GetNr();
+    const len_t Nr = grid->GetNr();
 
-        for (len_t ir = 0; ir < Nr; ++ir) {
-            const auto *mgK = grid->GetMomentumGrid(ir);
-            const auto *mgP = gridPrimary->GetMomentumGrid(ir);
+    for (len_t ir = 0; ir < Nr; ++ir) {
+        const auto *mgK = grid->GetMomentumGrid(ir);
+        const auto *mgP = gridPrimary->GetMomentumGrid(ir);
 
-            const len_t Np1K = mgK->GetNp1();
-            const len_t NxiK = mgK->GetNp2();
-            const len_t Np1P = mgP->GetNp1();
-            const len_t NxiP = mgP->GetNp2();
+        const len_t Np1K = mgK->GetNp1();
+        const len_t NxiK = mgK->GetNp2();
+        const len_t Np1P = mgP->GetNp1();
+        const len_t NxiP = mgP->GetNp2();
 
-            const real_t *VpK = grid->GetVp(ir);
+        const real_t *VpK = grid->GetVp(ir);
 
-            // W_{k,l} = dp1_k * dxi_l * Vp_{k,l} * f_{k,l}
-            BuildPrimaryWeights(ir, f_primary + offP, primaryWeights);
+        // W_{k,l} = dp1_k * dxi_l * Vp_{k,l} * f_{k,l}
+        BuildPrimaryWeights(ir, f_primary + offP, primaryWeights);
 
-            for (len_t i = 0; i < Np1K; ++i) {
-                for (len_t j = 0; j < NxiK; ++j) {
-                    pitchAccum[j] = 0.0;
-                }
-                for (len_t k = 0; k < Np1P; ++k) {
-                    const real_t sigma_ik = energyKernel->DifferentialCS(i, k);
-                    const real_t *Wkl = primaryWeights + k * NxiP;
+        for (len_t i = 0; i < Np1K; ++i) {
+            for (len_t j = 0; j < NxiK; ++j) {
+                pitchAccum[j] = 0.0;
+            }
+            for (len_t k = 0; k < Np1P; ++k) {
+                const real_t sigma_ik = energyKernel->DifferentialCS(i, k);
+                const real_t *Wkl = primaryWeights + k * NxiP;
 
-                    angleKernel->AccumulatePitch(ir, i, k, Wkl, sigma_ik, pitchAccum);
-                }
-
-                for (len_t j = 0; j < NxiK; ++j) {
-                    const len_t idxK = offK + j * Np1K + i;
-                    const real_t Vp = VpK[j * Np1K + i];
-                    sourceVector[idxK] = (Vp != 0) ? (pitchAccum[j] * (scaleFactor / Vp)) : 0.0;
-                }
+                angleKernel->AccumulatePitch(ir, i, k, Wkl, sigma_ik, pitchAccum);
             }
 
-            offK += mgK->GetNCells();
-            offP += mgP->GetNCells();
-        }
-    }
-
-    void MollerBoltzmannOperator::Rebuild(
-        real_t t, real_t /*dt*/, FVM::UnknownQuantityHandler * uqh
-    ) {
-        if (uqh != nullptr) this->unknowns = uqh;
-
-        constexpr real_t TIME_EPS_FACTOR = 100;
-        const bool timeHasUpdated = std::abs(t - t_source_rebuilt) >
-                                    TIME_EPS_FACTOR * std::numeric_limits<real_t>::epsilon();
-
-        if (timeHasUpdated) {
-            const real_t *f_primary = unknowns->GetUnknownDataPrevious(id_f_primary);
-            SetSourceVector(f_primary);
-            t_source_rebuilt = t;
-        }
-    }
-
-    void MollerBoltzmannOperator::SetVectorElements(real_t * vec, const real_t *x) {
-        len_t offset = 0;
-        for (len_t ir = 0; ir < grid->GetNr(); ++ir) {
-            const auto *mg = grid->GetMomentumGrid(ir);
-            const len_t Np = mg->GetNp1();
-            const len_t Nxi = mg->GetNp2();
-
-            for (len_t j = 0; j < Nxi; ++j) {
-                const len_t base = offset + Np * j;
-                for (len_t i = 0; i < Np; ++i) {
-                    const len_t ind = base + i;
-                    vec[ind] += x[ir] * sourceVector[ind];
-                }
+            for (len_t j = 0; j < NxiK; ++j) {
+                const len_t idxK = offK + j * Np1K + i;
+                const real_t Vp = VpK[j * Np1K + i];
+                sourceVector[idxK] = (Vp != 0) ? (pitchAccum[j] * (scaleFactor / Vp)) : 0.0;
             }
-            offset += mg->GetNCells();
         }
+
+        offK += mgK->GetNCells();
+        offP += mgP->GetNCells();
     }
+}
 
-    bool MollerBoltzmannOperator::SetJacobianBlock(
-        const len_t /*uqtyId*/, const len_t derivId, FVM::Matrix *jac, const real_t * /*x*/
-    ) {
-        if (derivId != id_ntot) return false;
+void MollerBoltzmannOperator::Rebuild(real_t t, real_t /*dt*/, FVM::UnknownQuantityHandler *uqh) {
+    if (uqh != nullptr) this->unknowns = uqh;
 
-        len_t offset = 0;
-        for (len_t ir = 0; ir < grid->GetNr(); ++ir) {
-            const auto *mg = grid->GetMomentumGrid(ir);
-            const len_t Np = mg->GetNp1();
-            const len_t Nxi = mg->GetNp2();
+    constexpr real_t TIME_EPS_FACTOR = 100;
+    const bool timeHasUpdated =
+        std::abs(t - t_source_rebuilt) > TIME_EPS_FACTOR * std::numeric_limits<real_t>::epsilon();
 
-            for (len_t j = 0; j < Nxi; ++j) {
-                const len_t base = offset + Np * j;
-                for (len_t i = 0; i < Np; ++i) {
-                    const len_t ind = base + i;
-                    jac->SetElement(ind, ir, sourceVector[ind]);
-                }
+    if (timeHasUpdated) {
+        const real_t *f_primary = unknowns->GetUnknownDataPrevious(id_f_primary);
+        SetSourceVector(f_primary);
+        t_source_rebuilt = t;
+    }
+}
+
+void MollerBoltzmannOperator::SetVectorElements(real_t *vec, const real_t *x) {
+    len_t offset = 0;
+    for (len_t ir = 0; ir < grid->GetNr(); ++ir) {
+        const auto *mg = grid->GetMomentumGrid(ir);
+        const len_t Np = mg->GetNp1();
+        const len_t Nxi = mg->GetNp2();
+
+        for (len_t j = 0; j < Nxi; ++j) {
+            const len_t base = offset + Np * j;
+            for (len_t i = 0; i < Np; ++i) {
+                const len_t ind = base + i;
+                vec[ind] += x[ir] * sourceVector[ind];
             }
-            offset += mg->GetNCells();
         }
+        offset += mg->GetNCells();
+    }
+}
 
-        return true;
+bool MollerBoltzmannOperator::SetJacobianBlock(
+    const len_t /*uqtyId*/, const len_t derivId, FVM::Matrix *jac, const real_t * /*x*/
+) {
+    if (derivId != id_ntot) {
+        return false;
+    }
+    len_t offset = 0;
+    for (len_t ir = 0; ir < grid->GetNr(); ++ir) {
+        const auto *mg = grid->GetMomentumGrid(ir);
+        const len_t Np = mg->GetNp1();
+        const len_t Nxi = mg->GetNp2();
+
+        for (len_t j = 0; j < Nxi; ++j) {
+            const len_t base = offset + Np * j;
+            for (len_t i = 0; i < Np; ++i) {
+                const len_t ind = base + i;
+                jac->SetElement(ind, ir, sourceVector[ind]);
+            }
+        }
+        offset += mg->GetNCells();
     }
 
-    bool MollerBoltzmannOperator::GridRebuilt() {
-        Deallocate();
-        ValidateGridAssumptions();
+    return true;
+}
 
-        // Reset explicit rebuild time.
-        t_source_rebuilt = -std::numeric_limits<real_t>::infinity();
+bool MollerBoltzmannOperator::GridRebuilt() {
+    Deallocate();
+    ValidateGridAssumptions();
 
-        // Rebuild kernels (they own their allocations).
-        energyKernel->GridRebuilt();
-        angleKernel->GridRebuilt();
+    // Reset explicit rebuild time.
+    t_source_rebuilt = -std::numeric_limits<real_t>::infinity();
 
-        // Reallocate operator-owned storage sized to new grid.
-        AllocateSourceVector();
-        AllocateScratchBuffers();
+    // Rebuild kernels (they own their allocations).
+    energyKernel->GridRebuilt();
+    angleKernel->GridRebuilt();
 
-        return true;
-    }
+    // Reallocate operator-owned storage sized to new grid.
+    AllocateSourceVector();
+    AllocateScratchBuffers();
+
+    return true;
+}

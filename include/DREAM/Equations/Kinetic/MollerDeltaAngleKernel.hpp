@@ -7,12 +7,8 @@
 namespace DREAM {
 
 /**
- * Helper which owns:
- *  - xi_star tabulation grid
- *  - deltaTable[ir][m] planes where each plane is (NxiK x NxiP)
- *  - interpolation metadata xiInterp[ir][i*NpP + k]
- *
- * Provides AccumulateAngleKernel() identical to the original implementation.
+ * Helper representing the orbit-averaged kinematic delta function
+ * appearing in the Møller knock-on problem.
  */
 class MollerDeltaAngleKernel {
     enum XiClamp { Interp = 0, ClampLow = 1, ClampHigh = 2 };
@@ -72,8 +68,9 @@ class MollerDeltaAngleKernel {
 
     void GridRebuilt();
 
-    void AccumulatePitch(len_t ir, len_t i, len_t k, const real_t *W_l, real_t Sik, real_t *outPitch_j)
-        const;
+    void AccumulatePitch(
+        len_t ir, len_t i, len_t k, const real_t *W_l, real_t Sik, real_t *outPitch_j
+    ) const;
 };
 
 }  // namespace DREAM
