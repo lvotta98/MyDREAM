@@ -692,6 +692,9 @@ real_t KnockOnUtilities::SetDeltaMatrixColumnOnGrid(
         }
         return norm;
     }
+
+    const real_t *Vp0K = grid_knockon->GetVpOverP2AtZero(ir);  // pitch-only void mask
+
     for (len_t j = 0; j < Nxi; j++) {
         const real_t dxi0j = mg->GetDp2(j);
         deltaCol[j] = EvaluateDeltaMatrixElementOnGrid(
