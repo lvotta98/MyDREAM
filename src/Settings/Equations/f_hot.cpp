@@ -23,10 +23,12 @@
 #include "DREAM/Equations/Kinetic/ElectricFieldTerm.hpp"
 #include "DREAM/Equations/Kinetic/ElectricFieldDiffusionTerm.hpp"
 #include "DREAM/Equations/Kinetic/EnergyDiffusionTerm.hpp"
+#include "DREAM/Equations/Kinetic/KnockOnOperatorGeneral.hpp"
 #include "DREAM/Equations/Kinetic/PitchScatterTerm.hpp"
 #include "DREAM/Equations/Kinetic/SlowingDownTerm.hpp"
 #include "DREAM/Equations/Kinetic/ParticleSourceTerm.hpp"
 #include "DREAM/Equations/Kinetic/TritiumSource.hpp"
+
 #include "DREAM/IO.hpp"
 #include "FVM/Equation/BoundaryConditions/PXiExternalKineticKinetic.hpp"
 #include "FVM/Equation/BoundaryConditions/PXiExternalLoss.hpp"
@@ -113,17 +115,56 @@ void SimulationGenerator::ConstructEquation_f_hot_kineq(
 		));
     }
 
-    // Add avalanche source
+    const real_t sourceSign = -1.0;  // convention: sources moved to LHS with negative sign
+
+    // several equation terms (Compton, Boltzmann) exist in the (f_hot, n_tot) block
+    // and need to share operator
+    FVM::Operator *Op_ntot = nullptr;
+
+    // Kinetic avalanche source for f_hot.
+    // - Boltzmann knock-on operator contributes in the (f_hot, n_tot) block (explicit in f_primary).
+    // - If no runaway grid exists, approximate external runaway primaries via RP and couple through (f_hot, n_re).
     OptionConstants::eqterm_avalanche_mode ava_mode = (enum OptionConstants::eqterm_avalanche_mode)s->GetInteger("eqsys/n_re/avalanche");
-    if(ava_mode == OptionConstants::EQTERM_AVALANCHE_MODE_KINETIC) {
+    bool useKineticAvalanche = (
+        ava_mode == OptionConstants::EQTERM_AVALANCHE_MODE_KINETIC 
+        || ava_mode == OptionConstants::EQTERM_AVALANCHE_MODE_BOLTZMANN_KNOCK_ON
+    );
+    if(useKineticAvalanche) {
         if(eqsys->GetHotTailGridType() != OptionConstants::MOMENTUMGRID_TYPE_PXI)
-            throw NotImplementedException("f_hot: Kinetic avalanche source only implemented for p-xi grid.");
+            throw NotImplementedException("f_hot: Kinetic avalanche sources only implemented for p-xi grid.");
 
         real_t pCutoff = s->GetReal("eqsys/n_re/pCutAvalanche");
-        FVM::Operator *Op_ava = new FVM::Operator(hottailGrid);
-        Op_ava->AddTerm(new AvalancheSourceRP(hottailGrid, eqsys->GetUnknownHandler(), pCutoff, -1.0 ));
         len_t id_n_re = eqsys->GetUnknownHandler()->GetUnknownID(OptionConstants::UQTY_N_RE);
-        eqsys->SetOperator(id_f_hot, id_n_re, Op_ava);
+        if(ava_mode == OptionConstants::EQTERM_AVALANCHE_MODE_KINETIC){
+            // use only the RP approximation 
+            FVM::Operator *Op_ava = new FVM::Operator(hottailGrid);
+            oqty_terms->f_hot_knock_on_RP = new AvalancheSourceRP(hottailGrid, eqsys->GetUnknownHandler(), pCutoff, sourceSign);
+            Op_ava->AddTerm(oqty_terms->f_hot_knock_on_RP);
+            eqsys->SetOperator(id_f_hot, id_n_re, Op_ava);
+        } else {
+            // General Boltzmann knock-on source on hottail grid, with primaries from:
+            //   (1) f_hot on hottail grid
+            //   (2) optionally f_re on runaway grid (if present), otherwise RP via n_re
+            len_t id_n_tot = eqsys->GetUnknownID(OptionConstants::UQTY_N_TOT);
+            if (Op_ntot == nullptr){
+                Op_ntot = new FVM::Operator(hottailGrid);
+            }
+            oqty_terms->knock_on_general_hot_hot = new KnockOnOperatorGeneral(hottailGrid, hottailGrid, eqsys->GetUnknownHandler(), id_f_hot, pCutoff, sourceSign);
+            Op_ntot->AddTerm(oqty_terms->knock_on_general_hot_hot);
+            if(eqsys->HasRunawayGrid()){
+                // add the contributions from primary electrons living on the runaway grid
+                len_t id_f_re = eqsys->GetUnknownID(OptionConstants::UQTY_F_RE);
+                oqty_terms->knock_on_general_hot_re = new KnockOnOperatorGeneral(hottailGrid, eqsys->GetRunawayGrid(), eqsys->GetUnknownHandler(), id_f_re, pCutoff, sourceSign);
+                Op_ntot->AddTerm(oqty_terms->knock_on_general_hot_re);
+            } else {
+                // no RE grid, use RP approximation for external runaways
+                FVM::Operator *Op_ava = new FVM::Operator(hottailGrid);
+                oqty_terms->f_hot_knock_on_RP = new AvalancheSourceRP(hottailGrid, eqsys->GetUnknownHandler(), pCutoff, sourceSign);
+                Op_ava->AddTerm(oqty_terms->f_hot_knock_on_RP);
+                eqsys->SetOperator(id_f_hot, id_n_re, Op_ava);
+            }
+            eqsys->SetOperator(id_f_hot, id_n_tot, Op_ntot);
+        }
     }
     
     // Add Compton source
@@ -132,13 +173,16 @@ void SimulationGenerator::ConstructEquation_f_hot_kineq(
         if(eqsys->GetHotTailGridType() != OptionConstants::MOMENTUMGRID_TYPE_PXI)
             throw NotImplementedException("f_hot: Kinetic Compton source only implemented for p-xi grid.");
 
-        FVM::Operator *Op_compton = new FVM::Operator(hottailGrid);
+        // shared operator with boltzmann
+        if(Op_ntot == nullptr){
+            Op_ntot = new FVM::Operator(hottailGrid);
+        }
         oqty_terms->comptonSource_hottail = new ComptonSource(hottailGrid, eqsys->GetUnknownHandler(), LoadDataT("eqsys/n_re/compton", s, "flux"), 
             s->GetReal("eqsys/n_re/compton/gammaInt"), s->GetReal("eqsys/n_re/compton/C1"), s->GetReal("eqsys/n_re/compton/C2"), s->GetReal("eqsys/n_re/compton/C3"), 
-            hottailGrid->GetMomentumGrid(0)->GetP1_f(hottailGrid->GetNp1(0)), -1.0);
-        Op_compton->AddTerm(oqty_terms->comptonSource_hottail);
+            hottailGrid->GetMomentumGrid(0)->GetP1_f(hottailGrid->GetNp1(0)), sourceSign);
+        Op_ntot->AddTerm(oqty_terms->comptonSource_hottail);
         len_t id_n_tot = eqsys->GetUnknownHandler()->GetUnknownID(OptionConstants::UQTY_N_TOT);
-        eqsys->SetOperator(id_f_hot, id_n_tot, Op_compton);
+        eqsys->SetOperator(id_f_hot, id_n_tot, Op_ntot);
     }
     
     // Add tritium source
@@ -150,7 +194,7 @@ void SimulationGenerator::ConstructEquation_f_hot_kineq(
         FVM::Operator *Op_tritium = new FVM::Operator(hottailGrid);    
         const len_t *ti = eqsys->GetIonHandler()->GetTritiumIndices();
         for(len_t iT=0; iT<eqsys->GetIonHandler()->GetNTritiumIndices(); iT++){
-            oqty_terms->tritiumSource_hottail.push_back(new TritiumSource(hottailGrid, eqsys->GetUnknownHandler(), eqsys->GetIonHandler(), ti[iT], 0., -1.0));
+            oqty_terms->tritiumSource_hottail.push_back(new TritiumSource(hottailGrid, eqsys->GetUnknownHandler(), eqsys->GetIonHandler(), ti[iT], 0., sourceSign));
             Op_tritium->AddTerm(oqty_terms->tritiumSource_hottail[iT]);
         }
         len_t id_n_i = eqsys->GetUnknownHandler()->GetUnknownID(OptionConstants::UQTY_ION_SPECIES);
