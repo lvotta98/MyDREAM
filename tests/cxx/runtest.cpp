@@ -22,6 +22,8 @@
 #include "tests/DREAM/IonRateEquation.hpp"
 #include "tests/DREAM/KnockOn.hpp"
 #include "tests/DREAM/KnockOnOperatorGeneral.hpp"
+#include "tests/DREAM/MollerEnergyKernel.hpp"
+#include "tests/DREAM/MollerDeltaAngleKernel.hpp"
 #include "tests/DREAM/MeanExcitationEnergy.hpp"
 #include "tests/DREAM/RunawayFluid.hpp"
 
@@ -47,7 +49,9 @@ void init() {
     add_test(new DREAMTESTS::_DREAM::BoundaryFlux("dream/boundaryflux"));
     add_test(new DREAMTESTS::_DREAM::IonRateEquation("dream/ionrateequation"));
     add_test(new DREAMTESTS::_DREAM::KnockOn("dream/knockon"));
-    add_test(new DREAMTESTS::_DREAM::KnockOnOperatorGeneral("dream/knockonoperator"));
+    add_test(new DREAMTESTS::_DREAM::MollerBoltzmannOperator("dream/boltzmann"));
+    add_test(new DREAMTESTS::_DREAM::MollerEnergyKernel("dream/mollerenergy"));
+    add_test(new DREAMTESTS::_DREAM::MollerDeltaAngleKernel("dream/mollerdelta"));
     add_test(new DREAMTESTS::_DREAM::MeanExcitationEnergy("dream/meanexcitationenergy"));
     add_test(new DREAMTESTS::_DREAM::RunawayFluid("dream/runawayfluid"));
 

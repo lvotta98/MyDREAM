@@ -149,12 +149,12 @@ void SimulationGenerator::ConstructEquation_f_hot_kineq(
             if (Op_ntot == nullptr){
                 Op_ntot = new FVM::Operator(hottailGrid);
             }
-            oqty_terms->knock_on_general_hot_hot = new KnockOnOperatorGeneral(hottailGrid, hottailGrid, eqsys->GetUnknownHandler(), id_f_hot, pCutoff, sourceSign);
+            oqty_terms->knock_on_general_hot_hot = new MollerBoltzmannOperator(hottailGrid, hottailGrid, eqsys->GetUnknownHandler(), id_f_hot, pCutoff, sourceSign);
             Op_ntot->AddTerm(oqty_terms->knock_on_general_hot_hot);
             if(eqsys->HasRunawayGrid()){
                 // add the contributions from primary electrons living on the runaway grid
                 len_t id_f_re = eqsys->GetUnknownID(OptionConstants::UQTY_F_RE);
-                oqty_terms->knock_on_general_hot_re = new KnockOnOperatorGeneral(hottailGrid, eqsys->GetRunawayGrid(), eqsys->GetUnknownHandler(), id_f_re, pCutoff, sourceSign);
+                oqty_terms->knock_on_general_hot_re = new MollerBoltzmannOperator(hottailGrid, eqsys->GetRunawayGrid(), eqsys->GetUnknownHandler(), id_f_re, pCutoff, sourceSign);
                 Op_ntot->AddTerm(oqty_terms->knock_on_general_hot_re);
             } else {
                 // no RE grid, use RP approximation for external runaways

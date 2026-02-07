@@ -1,6 +1,8 @@
-#ifndef _DREAM_EQUATIONS_KNOCK_ON_OPERATOR_GENERAL_HPP
-#define _DREAM_EQUATIONS_KNOCK_ON_OPERATOR_GENERAL_HPP
+#ifndef _DREAM_EQUATIONS_MOLLER_BOLTZMANN_OPERATOR_HPP
+#define _DREAM_EQUATIONS_MOLLER_BOLTZMANN_OPERATOR_HPP
 
+#include "DREAM/Equations/Kinetic/MollerDeltaAngleKernel.hpp"
+#include "DREAM/Equations/Kinetic/MollerEnergyKernel.hpp"
 #include "FVM/Equation/EquationTerm.hpp"
 #include "FVM/Grid/Grid.hpp"
 #include "FVM/config.h"
@@ -8,56 +10,32 @@
 namespace DREAM {
 
 /**
- * Knock-on source term from large-angle binary (Møller) collisions.
+ * Generalized knock on Boltzmann source term, configured
+ * for free-free large-angle Møller collisions.
  *
- * This equation term represents a kinetic source proportional to the total
- * target density n_tot(r). The term is treated explicitly in time: the source
- * is rebuilt only when the time level changes (not on each Newton iteration).
+ * Owns:
+ *  - MollerEnergyKernel (energy / momentum transfer kernel)
+ *  - MollerDeltaAngleKernel (pitch-angle delta redistribution)
  *
- * Implementation notes:
- *  - Relies on tabulated pitch-angle delta kernels from KnockOnUtilities.
- *  - Assumes p-\xi momentum grids are identical across radii (validated).
+ * The term depends on unknowns:
+ *  - n_tot: time-implicit
+ *  - f_primary (f_hot or f_re): time explicit
  */
-class KnockOnOperatorGeneral : public FVM::EquationTerm {
-    enum XiClamp { Interp = 0, ClampLow = 1, ClampHigh = 2 };
-
-    struct XiStarInterp {
-        len_t m0;       // valid if clamp == Interp
-        real_t w1;      // valid if clamp == Interp
-        XiClamp clamp;  // interpolation or endpoint clamping
-    };
-
+class MollerBoltzmannOperator : public FVM::EquationTerm {
    private:
-    FVM::Grid *gridPrimary;
-    FVM::UnknownQuantityHandler *unknowns;
+    FVM::Grid *gridPrimary = nullptr;
+    FVM::UnknownQuantityHandler *unknowns = nullptr;
 
-    len_t id_ntot;
-    len_t id_f_primary;
+    len_t id_ntot = 0;
+    len_t id_f_primary = 0;
 
-    real_t pCutoff;
-    real_t scaleFactor;
-    len_t nXiStarsTabulate;
-    len_t nPointsIntegral;
+    real_t scaleFactor = 1.0;
 
-    // Reference grid in xi_star used for delta-kernel tabulation.
-    real_t xiStarMin = 0.0;
-    real_t xiStarMax = 1.0;
-    real_t dXiStar = 1.0;
-    real_t *xiStarsTab = nullptr;
+    // The two “helper” kernel owners.
+    MollerEnergyKernel *energyKernel;
+    MollerDeltaAngleKernel *angleKernel;
 
-    // Delta kernels tabulated on xi_star grid:
-    //   deltaTable[ir][m][j + l*NxiK] = Delta_{j l}(xi_star[m])
-    // where NxiK is knock-on pitch resolution, and l indexes the primary pitch.
-    real_t ***deltaTable = nullptr;
-    real_t **deltaTableStorage = nullptr;  // contiguous storage per radius
-
-    // Møller momentum-space kernel S_{ik} integrated over outgoing p-cells.
-    real_t *mollerSMatrix = nullptr;
-
-    // Precomputed xi_star interpolation meta-data for each (i,k) pair.
-    XiStarInterp **xiInterp = nullptr;
-
-    // Assembled source vector (per momentum-space cell on the knock-on grid).
+    // Assembled source vector on knock-on grid.
     real_t *sourceVector = nullptr;
     real_t t_source_rebuilt;
 
@@ -68,28 +46,20 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
     void ValidateInputParameters() const;
     void ValidateGridAssumptions() const;
 
-    void AllocateAndBuildTables();
-    void Deallocate();
-
-    void TabulateDeltaMatrixOnXiStarGrid();
-    void BuildMollerSMatrix();
-    void BuildXiStarInterp();
     void AllocateScratchBuffers();
+    void AllocateSourceVector();
+    void Deallocate();
 
     void BuildPrimaryWeights(len_t ir, const real_t *f_primary_ir, real_t *W_k_l) const;
     void SetSourceVector(const real_t *f_primary);
 
-    void SelectDeltaPlanes(
-        len_t ir, len_t i, len_t k, const real_t *&D0, const real_t *&D1, real_t &w0, real_t &w1
-    ) const;
-
    public:
-    KnockOnOperatorGeneral(
+    MollerBoltzmannOperator(
         FVM::Grid *grid_knockon, FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *unknowns,
         len_t id_f_primary, real_t p_cutoff, real_t scaleFactor = 1.0,
         len_t n_xi_stars_tabulate = 100, len_t n_points_integral = 80
     );
-    ~KnockOnOperatorGeneral();
+    ~MollerBoltzmannOperator();
 
     virtual void Rebuild(const real_t, const real_t, FVM::UnknownQuantityHandler *) override;
     virtual bool GridRebuilt() override;
@@ -98,16 +68,8 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
         const len_t uqtyId, const len_t derivId, FVM::Matrix *jac, const real_t *x
     ) override;
     virtual len_t GetNumberOfNonZerosPerRow() const override { return 1; }
-
-    void AccumulateAngleKernel(
-        len_t ir, len_t i, len_t k, const real_t *W_l, real_t Sik, real_t *outPitch_j
-    ) const;
-    inline real_t MollerDifferentialCrossSection(len_t ir, len_t i, len_t k) const {
-        // S(i,k) = differential cross section integrated over outgoing control volume i.
-        return mollerSMatrix[i * gridPrimary->GetNp1(ir) + k];
-    }
 };
 
 }  // namespace DREAM
 
-#endif /*_DREAM_EQUATIONS_KNOCK_ON_OPERATOR_GENERAL_HPP*/
+#endif /*_DREAM_EQUATIONS_MOLLER_BOLTZMANN_OPERATOR_HPP*/

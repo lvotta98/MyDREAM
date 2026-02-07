@@ -112,9 +112,9 @@ namespace DREAM {
             // List of approximated RE impact ionization rates for each ion species
             std::vector<IonFluidRunawayIonizationTerm*> n_re_kin_rates;
             // Kinetic knock-on sources
-            DREAM::KnockOnOperatorGeneral *knock_on_general_hot_hot=nullptr;
-            DREAM::KnockOnOperatorGeneral *knock_on_general_hot_re=nullptr;
-            DREAM::KnockOnOperatorGeneral *knock_on_general_re_re=nullptr;
+            DREAM::MollerBoltzmannOperator *knock_on_general_hot_hot=nullptr;
+            DREAM::MollerBoltzmannOperator *knock_on_general_hot_re=nullptr;
+            DREAM::MollerBoltzmannOperator *knock_on_general_re_re=nullptr;
             DREAM::AvalancheSourceRP *f_hot_knock_on_RP=nullptr;
             DREAM::AvalancheSourceRP *f_re_knock_on_RP=nullptr;
         };
