@@ -41,25 +41,26 @@ KnockOnOperatorGeneral::KnockOnOperatorGeneral(
 KnockOnOperatorGeneral::~KnockOnOperatorGeneral() { Deallocate(); }
 
 void KnockOnOperatorGeneral::ValidateInputParameters() const {
-    if (unknowns == nullptr)
+    if (unknowns == nullptr) {
         throw DREAMException("KnockOnOperatorGeneral: 'unknowns' must not be null.");
-
-    if (!(pCutoff > 0))
+    }
+    if (!(pCutoff > 0)) {
         throw DREAMException(
             "KnockOnOperatorGeneral: invalid pCutoff=%.16g (must be > 0).", pCutoff
         );
-
-    if (nXiStarsTabulate < 2)
+    }
+    if (nXiStarsTabulate < 2) {
         throw DREAMException(
             "KnockOnOperatorGeneral: n_xi_stars_tabulate must be >= 2 (got %ld).",
             (long)nXiStarsTabulate
         );
-
-    if (nPointsIntegral < 1)
+    }
+    if (nPointsIntegral < 1) {
         throw DREAMException(
             "KnockOnOperatorGeneral: n_points_integral must be >= 1 (got %ld).",
             (long)nPointsIntegral
         );
+    }
 }
 
 // Ensure that the assumptions we make on the grid are justified.
@@ -74,15 +75,17 @@ void KnockOnOperatorGeneral::ValidateGridAssumptions() const {
     // Require p-\xi grids and uniform momentum resolution across radii.
     // KnockOnUtilities assumes the momentum grids are identical at all radii.
     for (len_t ir = 1; ir < grid->GetNr(); ++ir) {
-        if (grid->GetNp1(ir) != grid->GetNp1(0) || grid->GetNp2(ir) != grid->GetNp2(0))
+        if (grid->GetNp1(ir) != grid->GetNp1(0) || grid->GetNp2(ir) != grid->GetNp2(0)) {
             throw DREAMException(
                 "KnockOnOperatorGeneral: requires uniform knock-on Np across radii."
             );
+        }
 
         if (gridPrimary->GetNp1(ir) != gridPrimary->GetNp1(0) ||
-            gridPrimary->GetNp2(ir) != gridPrimary->GetNp2(0))
+            gridPrimary->GetNp2(ir) != gridPrimary->GetNp2(0)) {
             throw DREAMException("KnockOnOperatorGeneral: requires uniform primary Np across radii."
             );
+        }
     }
 }
 
@@ -163,8 +166,9 @@ void KnockOnOperatorGeneral::AllocateAndBuildTables() {
         deltaTable[ir] = new real_t *[nXiStarsTabulate];
         deltaTableStorage[ir] = new real_t[nXiStarsTabulate * planeSize];
 
-        for (len_t m = 0; m < nXiStarsTabulate; ++m)
+        for (len_t m = 0; m < nXiStarsTabulate; ++m) {
             deltaTable[ir][m] = deltaTableStorage[ir] + m * planeSize;
+        }
     }
 
     // Momentum-space kernel.
@@ -190,13 +194,14 @@ void KnockOnOperatorGeneral::AllocateAndBuildTables() {
     dXiStar = (xiStarMax - xiStarMin) / (real_t)(nXiStarsTabulate - 1);
 
     xiStarsTab = new real_t[nXiStarsTabulate];
-    for (len_t i = 0; i < nXiStarsTabulate; ++i) xiStarsTab[i] = xiStarMin + (real_t)i * dXiStar;
-
+    for (len_t i = 0; i < nXiStarsTabulate; ++i) {
+        xiStarsTab[i] = xiStarMin + (real_t)i * dXiStar;
+    }
     // xi_star interpolation metadata.
     xiInterp = new XiStarInterp *[Nr];
-    for (len_t ir = 0; ir < Nr; ++ir)
+    for (len_t ir = 0; ir < Nr; ++ir) {
         xiInterp[ir] = new XiStarInterp[grid->GetNp1(ir) * gridPrimary->GetNp1(ir)];
-
+    }
     AllocateScratchBuffers();
     BuildMollerSMatrix();
     TabulateDeltaMatrixOnXiStarGrid();
@@ -207,11 +212,13 @@ void KnockOnOperatorGeneral::BuildMollerSMatrix() {
     const len_t NpK = grid->GetNp1(0);
     const len_t NpP = gridPrimary->GetNp1(0);
 
-    for (len_t i = 0; i < NpK; ++i)
-        for (len_t k = 0; k < NpP; ++k)
+    for (len_t i = 0; i < NpK; ++i) {
+        for (len_t k = 0; k < NpP; ++k) {
             mollerSMatrix[i * NpP + k] = KnockOnUtilities::EvaluateMollerFluxMatrixElementOnGrid(
                 i, k, grid, gridPrimary, pCutoff
             );
+        }
+    }
 }
 
 void KnockOnOperatorGeneral::BuildXiStarInterp() {
@@ -248,8 +255,9 @@ void KnockOnOperatorGeneral::BuildXiStarInterp() {
 
                 const real_t s = (xs - xiStarMin) * inv_dXiStar;  // >= 0
                 len_t m0 = (len_t)s;
-                if (m0 >= nXiStarsTabulate - 1) m0 = nXiStarsTabulate - 2;
-
+                if (m0 >= nXiStarsTabulate - 1) {
+                    m0 = nXiStarsTabulate - 2;
+                }
                 T.clamp = Interp;
                 T.m0 = m0;
                 T.w1 = s - (real_t)m0;  // in [0,1)
@@ -347,19 +355,27 @@ void KnockOnOperatorGeneral::AccumulateAngleKernel(
     if (D1 == nullptr) {
         for (len_t l = 0; l < NxiP; ++l) {
             const real_t W = W_l[l];
-            if (W == 0) continue;
+            if (W == 0) {
+                continue;
+            }
             const real_t scale = Sik * W;
             const real_t *col0 = D0 + l * NxiK;
-            for (len_t j = 0; j < NxiK; ++j) outPitch_j[j] += scale * col0[j];
+            for (len_t j = 0; j < NxiK; ++j) {
+                outPitch_j[j] += scale * col0[j];
+            }
         }
     } else {
         for (len_t l = 0; l < NxiP; ++l) {
             const real_t W = W_l[l];
-            if (W == 0) continue;
+            if (W == 0) {
+                continue;
+            }
             const real_t scale = Sik * W;
             const real_t *col0 = D0 + l * NxiK;
             const real_t *col1 = D1 + l * NxiK;
-            for (len_t j = 0; j < NxiK; ++j) outPitch_j[j] += scale * (w0 * col0[j] + w1 * col1[j]);
+            for (len_t j = 0; j < NxiK; ++j) {
+                outPitch_j[j] += scale * (w0 * col0[j] + w1 * col1[j]);
+            }
         }
     }
 }
@@ -388,7 +404,6 @@ void KnockOnOperatorGeneral::SetSourceVector(const real_t *f_primary) {
         const len_t NxiP = mgP->GetNp2();
 
         const real_t *VpK = grid->GetVp(ir);
-        const real_t *VpOverP2AtZero = grid->GetVpOverP2AtZero(ir);
 
         BuildPrimaryWeights(ir, f_primary + offP, primaryWeights);
 
@@ -397,7 +412,6 @@ void KnockOnOperatorGeneral::SetSourceVector(const real_t *f_primary) {
             for (len_t j = 0; j < NxiK; ++j) {
                 pitchAccum[j] = 0.0;
             }
-
             for (len_t k = 0; k < Np1P; ++k) {
                 const real_t Sik = MollerDifferentialCrossSection(ir, i, k);
                 const real_t *W_l = primaryWeights + k * NxiP;
@@ -407,12 +421,6 @@ void KnockOnOperatorGeneral::SetSourceVector(const real_t *f_primary) {
             // Write to sourceVector at this i.
             for (len_t j = 0; j < NxiK; ++j) {
                 const len_t idxK = offK + j * Np1K + i;
-
-                if (VpOverP2AtZero[j] == 0) {
-                    sourceVector[idxK] = 0.0;
-                    continue;
-                }
-
                 const real_t Vp = VpK[j * Np1K + i];
                 sourceVector[idxK] = (Vp != 0) ? (pitchAccum[j] * (scaleFactor / Vp)) : 0.0;
             }
@@ -464,8 +472,9 @@ void KnockOnOperatorGeneral::SetVectorElements(real_t *vec, const real_t *x) {
 bool KnockOnOperatorGeneral::SetJacobianBlock(
     const len_t /*uqtyId*/, const len_t derivId, FVM::Matrix *jac, const real_t * /*x*/
 ) {
-    if (derivId != id_ntot) return false;
-
+    if (derivId != id_ntot) {
+        return false;
+    }
     len_t offset = 0;
     for (len_t ir = 0; ir < grid->GetNr(); ++ir) {
         const auto *mg = grid->GetMomentumGrid(ir);
@@ -511,36 +520,4 @@ void KnockOnOperatorGeneral::TabulateDeltaMatrixOnXiStarGrid() {
             }
         }
     }
-}
-
-/**
- * Interpolates the pre-tabulated orbit-averaged knock-on delta function
- * at a given momentum pair (p, p1) and pitch indices (j, l).
- */
-real_t KnockOnOperatorGeneral::EvaluateDeltaMatrixElement(
-    len_t ir, len_t i, len_t k, len_t j, len_t l
-) const {
-    const len_t NxiK = grid->GetMomentumGrid(ir)->GetNp2();
-    const len_t idxJL = l * NxiK + j;
-
-    const auto *mgP = gridPrimary->GetMomentumGrid(ir);
-    const len_t NpP = mgP->GetNp1();
-    const XiStarInterp &T = xiInterp[ir][i * NpP + k];
-
-    switch (T.clamp) {
-        case XiClamp::ClampLow:
-            return deltaTable[ir][0][idxJL];
-        case XiClamp::ClampHigh:
-            return deltaTable[ir][nXiStarsTabulate - 1][idxJL];
-        case XiClamp::Interp:
-            break;
-    }
-
-    const len_t m0 = T.m0;
-    const real_t w1 = T.w1;
-    const real_t w0 = 1.0 - w1;
-
-    const real_t d0 = deltaTable[ir][m0][idxJL];
-    const real_t d1 = deltaTable[ir][m0 + 1][idxJL];
-    return w0 * d0 + w1 * d1;
 }

@@ -79,16 +79,8 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
     void BuildPrimaryWeights(len_t ir, const real_t *f_primary_ir, real_t *W_k_l) const;
     void SetSourceVector(const real_t *f_primary);
 
-    inline real_t MollerDifferentialCrossSection(len_t ir, len_t i, len_t k) const {
-        // S(i,k) = differential cross section integrated over outgoing control volume i.
-        return mollerSMatrix[i * gridPrimary->GetNp1(ir) + k];
-    }
-
     void SelectDeltaPlanes(
         len_t ir, len_t i, len_t k, const real_t *&D0, const real_t *&D1, real_t &w0, real_t &w1
-    ) const;
-    void AccumulateAngleKernel(
-        len_t ir, len_t i, len_t k, const real_t *W_l, real_t Sik, real_t *outPitch_j
     ) const;
 
    public:
@@ -107,7 +99,13 @@ class KnockOnOperatorGeneral : public FVM::EquationTerm {
     ) override;
     virtual len_t GetNumberOfNonZerosPerRow() const override { return 1; }
 
-    real_t EvaluateDeltaMatrixElement(len_t ir, len_t i, len_t k, len_t j, len_t l) const;
+    void AccumulateAngleKernel(
+        len_t ir, len_t i, len_t k, const real_t *W_l, real_t Sik, real_t *outPitch_j
+    ) const;
+    inline real_t MollerDifferentialCrossSection(len_t ir, len_t i, len_t k) const {
+        // S(i,k) = differential cross section integrated over outgoing control volume i.
+        return mollerSMatrix[i * gridPrimary->GetNp1(ir) + k];
+    }
 };
 
 }  // namespace DREAM
