@@ -30,6 +30,9 @@ class KnockOnOperatorGeneral : public UnitTest {
     //   sum_j dxi_j * Delta_interp(j,l; xiStar(p_i,p1_k)) ~= 1
     bool CheckKOG_DeltaInterpolationConservation();
 
+    // Check that sum_i dp_i * S_ik = Stot_k
+    bool CheckKOG_MollerKernelConservation();
+
     // Linearity of assembled source term in f_primary:
     //   S(fA+fB) ~= S(fA) + S(fB)
     bool CheckKOG_LinearityInFPrimary();
@@ -41,6 +44,9 @@ class KnockOnOperatorGeneral : public UnitTest {
     // Integration test combining Delta normalization and Moller S conservation:
     //   ∑_{i,j} dp dxi Vp * source(i,j) == ∑_{k,l} dp1 dxi1 Vp1 f(k,l) * [∑_i dp S_{ik}]
     bool CheckKOG_GlobalProductionIdentity();
+
+    // Cross-grid test: primaries on runaway grid sourcing hot grid
+    bool CheckKOG_HotRunawayGlobalProductionIdentity();
 
     bool CheckKOG_TimeCachingRegression();
 
