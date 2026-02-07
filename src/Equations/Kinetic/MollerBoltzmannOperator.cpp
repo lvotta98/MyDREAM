@@ -9,7 +9,7 @@
 using namespace DREAM;
 
 MollerBoltzmannOperator::MollerBoltzmannOperator(
-    FVM::Grid *gridKnockon, FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *unknowns,
+    FVM::Grid *gridKnockon, const FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *unknowns,
     len_t id_f_primary, real_t pCutoff, real_t scaleFactor, len_t n_xi_stars_tabulate,
     len_t n_points_integral
 )

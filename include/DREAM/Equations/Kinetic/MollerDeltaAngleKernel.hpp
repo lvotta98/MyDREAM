@@ -65,7 +65,7 @@ class MollerDeltaAngleKernel {
 
    public:
     MollerDeltaAngleKernel(
-        FVM::Grid *grid_knockon, FVM::Grid *grid_primary, real_t p_cutoff,
+        const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t p_cutoff,
         len_t n_xi_stars_tabulate, len_t n_points_integral
     );
     ~MollerDeltaAngleKernel();

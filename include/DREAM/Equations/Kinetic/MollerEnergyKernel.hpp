@@ -29,7 +29,7 @@ class MollerEnergyKernel {
     void ValidateGridAssumptions() const;
 
    public:
-    MollerEnergyKernel(FVM::Grid *grid_knockon, FVM::Grid *grid_primary, real_t p_cutoff);
+    MollerEnergyKernel(const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t p_cutoff);
     ~MollerEnergyKernel();
 
     void GridRebuilt();

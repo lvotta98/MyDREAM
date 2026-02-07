@@ -6,7 +6,7 @@
 using namespace DREAM;
 
 MollerEnergyKernel::MollerEnergyKernel(
-    FVM::Grid *grid_knockon, FVM::Grid *grid_primary, real_t p_cutoff
+    const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t p_cutoff
 )
     : gridK(grid_knockon), gridP(grid_primary), pCutoff(p_cutoff) {
     ValidateInputParameters();
@@ -77,5 +77,5 @@ void MollerEnergyKernel::GridRebuilt() {
 }
 
 real_t MollerEnergyKernel::TotalCS(len_t k) const {
-    KnockOnUtilities::EvaluateMollerFluxIntegratedOverKnockonGrid(k, gridK, gridP, pCutoff);
+    return KnockOnUtilities::EvaluateMollerFluxIntegratedOverKnockonGrid(k, gridK, gridP, pCutoff);
 }

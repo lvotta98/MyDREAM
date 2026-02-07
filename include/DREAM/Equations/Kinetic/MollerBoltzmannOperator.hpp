@@ -23,7 +23,7 @@ namespace DREAM {
  */
 class MollerBoltzmannOperator : public FVM::EquationTerm {
    private:
-    FVM::Grid *gridPrimary = nullptr;
+    const FVM::Grid *gridPrimary = nullptr;
     FVM::UnknownQuantityHandler *unknowns = nullptr;
 
     len_t id_ntot = 0;
@@ -55,7 +55,7 @@ class MollerBoltzmannOperator : public FVM::EquationTerm {
 
    public:
     MollerBoltzmannOperator(
-        FVM::Grid *grid_knockon, FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *unknowns,
+        FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *unknowns,
         len_t id_f_primary, real_t p_cutoff, real_t scaleFactor = 1.0,
         len_t n_xi_stars_tabulate = 100, len_t n_points_integral = 80
     );
