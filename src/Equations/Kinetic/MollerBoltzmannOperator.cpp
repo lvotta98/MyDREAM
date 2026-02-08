@@ -10,14 +10,16 @@ using namespace DREAM;
 
 MollerBoltzmannOperator::MollerBoltzmannOperator(
     FVM::Grid *gridKnockon, const FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *unknowns,
-    len_t id_f_primary, real_t pCutoff, real_t scaleFactor, len_t n_xi_stars_tabulate,
-    len_t n_points_integral
+    len_t id_f_primary, const MollerEnergyKernel *energyKernel, const MollerDeltaAngleKernel *angleKernel,
+    real_t scaleFactor
 )
     : FVM::EquationTerm(gridKnockon),
       gridPrimary(grid_primary),
       unknowns(unknowns),
       id_f_primary(id_f_primary),
-      scaleFactor(scaleFactor) {
+      scaleFactor(scaleFactor),
+      energyKernel(energyKernel),
+      angleKernel(angleKernel) {
     SetName("MollerBoltzmannOperator");
 
     ValidateInputParameters();
@@ -30,12 +32,6 @@ MollerBoltzmannOperator::MollerBoltzmannOperator(
 
     AllocateSourceVector();
     AllocateScratchBuffers();
-
-    // Build kernels
-    energyKernel = new MollerEnergyKernel(gridKnockon, gridPrimary, pCutoff);
-    angleKernel = new MollerDeltaAngleKernel(
-        gridKnockon, gridPrimary, pCutoff, n_xi_stars_tabulate, n_points_integral
-    );
 }
 
 MollerBoltzmannOperator::~MollerBoltzmannOperator() { Deallocate(); }
@@ -97,9 +93,6 @@ void MollerBoltzmannOperator::Deallocate() {
         delete[] pitchAccum;
         pitchAccum = nullptr;
     }
-
-    delete energyKernel;
-    delete angleKernel;
 }
 
 void MollerBoltzmannOperator::BuildPrimaryWeights(
@@ -238,10 +231,6 @@ bool MollerBoltzmannOperator::GridRebuilt() {
 
     // Reset explicit rebuild time.
     t_source_rebuilt = -std::numeric_limits<real_t>::infinity();
-
-    // Rebuild kernels (they own their allocations).
-    energyKernel->GridRebuilt();
-    angleKernel->GridRebuilt();
 
     // Reallocate operator-owned storage sized to new grid.
     AllocateSourceVector();

@@ -34,7 +34,7 @@ class MollerEnergyKernel {
 
     void GridRebuilt();
 
-    // Cell-integrated (over knock-on momenta) moller differential cross section weighted by v1.
+    // Cell-integrated (over knock-on momenta) Møller differential cross section weighted by v1.
     // Momentum cell i (clamped by pCutoff and half-max energy transfer) on the
     // knock-on grid, and p1_k on primary grid.
     real_t DifferentialCS(len_t i, len_t k) const {

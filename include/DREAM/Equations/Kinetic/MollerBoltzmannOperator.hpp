@@ -13,10 +13,6 @@ namespace DREAM {
  * Generalized knock on Boltzmann source term, configured
  * for free-free large-angle Møller collisions.
  *
- * Owns:
- *  - MollerEnergyKernel (energy / momentum transfer kernel)
- *  - MollerDeltaAngleKernel (pitch-angle delta redistribution)
- *
  * The term depends on unknowns:
  *  - n_tot: time-implicit
  *  - f_primary (f_hot or f_re): time explicit
@@ -32,8 +28,8 @@ class MollerBoltzmannOperator : public FVM::EquationTerm {
     real_t scaleFactor = 1.0;
 
     // The two “helper” kernel owners.
-    MollerEnergyKernel *energyKernel;
-    MollerDeltaAngleKernel *angleKernel;
+    const MollerEnergyKernel *energyKernel;
+    const MollerDeltaAngleKernel *angleKernel;
 
     // Assembled source vector on knock-on grid.
     real_t *sourceVector = nullptr;
@@ -55,9 +51,9 @@ class MollerBoltzmannOperator : public FVM::EquationTerm {
 
    public:
     MollerBoltzmannOperator(
-        FVM::Grid *grid_knockon, const FVM::Grid *grid_primary,
-        FVM::UnknownQuantityHandler *unknowns, len_t id_f_primary, real_t p_cutoff,
-        real_t scaleFactor = 1.0, len_t n_xi_stars_tabulate = 100, len_t n_points_integral = 80
+        FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *,
+        len_t id_f_primary, const MollerEnergyKernel *, const MollerDeltaAngleKernel *,
+        real_t scaleFactor = 1.0
     );
     ~MollerBoltzmannOperator();
 

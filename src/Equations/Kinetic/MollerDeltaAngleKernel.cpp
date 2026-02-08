@@ -102,8 +102,10 @@ void DREAM::MollerDeltaAngleKernel::ValidateInputParameters() const {
     }
 }
 
+// Generate a xi_star grid on which we tabulate the kinematic delta. 
+// To get maximum bang for the back we identify its min and max values
+// on the given grids and only sample between those.
 void MollerDeltaAngleKernel::BuildXiStarTabulationGrid() {
-    // Same logic as original AllocateAndBuildTables().
     const auto *mgK = gridK->GetMomentumGrid(0);
     const auto *mgP = gridP->GetMomentumGrid(0);
 
@@ -149,6 +151,8 @@ void MollerDeltaAngleKernel::AllocateDeltaTables() {
     }
 }
 
+// The real kinematic delta depends on p_i, p1_k only indirectly via xi_star(p, p1),
+// therefore we here tabulate on a grid of xi_star values.
 void MollerDeltaAngleKernel::TabulateDeltaMatrixOnXiStarGrid() {
     const len_t Nr = gridK->GetNr();
     for (len_t ir = 0; ir < Nr; ++ir) {
@@ -167,6 +171,8 @@ void MollerDeltaAngleKernel::TabulateDeltaMatrixOnXiStarGrid() {
     }
 }
 
+
+// Precompute interpolation tables for linear interpolation in delta vs xi_star.
 void MollerDeltaAngleKernel::BuildXiStarInterp() {
     const real_t inv_dXiStar = 1.0 / dXiStar;
 

@@ -20,9 +20,9 @@ class MollerDeltaAngleKernel {
     };
 
     struct DeltaInterp {
-        const real_t *D0;  // plane 0 (NxiK x NxiP), column-major in l
-        const real_t *D1;  // plane 1 or == D0 if clamped
-        real_t w0, w1;     // interpolation weights (w0+w1=1), (1,0) if clamped
+        const real_t *D0; // plane 0 (NxiK x NxiP), column-major in l
+        const real_t *D1; // plane 1 or == D0 if clamped
+        real_t w0, w1; // interpolation weights (w0+w1=1), (1,0) if clamped
     };
 
    private:
