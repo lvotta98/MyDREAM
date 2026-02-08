@@ -3,13 +3,14 @@
 
 namespace DREAM { class EquationSystem; class Simulation; }
 
-#include <map>
-#include <string>
-#include <vector>
+
 #include "DREAM/EqsysInitializer.hpp"
+#include "DREAM/Equations/AnalyticDistributionHottail.hpp"
 #include "DREAM/Equations/CollisionQuantityHandler.hpp"
 #include "DREAM/Equations/RunawayFluid.hpp"
-#include "DREAM/Equations/AnalyticDistributionHottail.hpp"
+#include "DREAM/Equations/RunawaySourceTermHandler.hpp"
+#include "DREAM/Equations/SPIHandler.hpp"
+#include "DREAM/MollerKernelHandler.hpp"
 #include "DREAM/OtherQuantityHandler.hpp"
 #include "DREAM/PostProcessor.hpp"
 #include "DREAM/Settings/OptionConstants.hpp"
@@ -28,8 +29,8 @@ namespace DREAM { class EquationSystem; class Simulation; }
 #include "FVM/UnknownQuantity.hpp"
 #include "FVM/UnknownQuantityHandler.hpp"
 //#include "IonHandler.hpp"
-#include "FVM/QuantityData.hpp"
 #include "DREAM/NBIHandler.hpp"
+#include "FVM/QuantityData.hpp"
 
 
 namespace DREAM {
@@ -67,6 +68,7 @@ namespace DREAM {
         RunawayFluid *REFluid = nullptr;
         SPIHandler *SPI = nullptr;
         BootstrapCurrent *bootstrap = nullptr;
+        MollerKernelHandler *mollerKH = nullptr;
         Settings *settings = nullptr;
 		std::vector<RunawaySourceTermHandler*> rsths;
 
@@ -120,6 +122,7 @@ namespace DREAM {
         RunawayFluid *GetREFluid() { return this->REFluid; }
         SPIHandler *GetSPIHandler() { return this->SPI; }
         BootstrapCurrent *GetBootstrap() { return this->bootstrap; }
+        const MollerKernelHandler *GetMollerKernelHandler() { return this->mollerKH; }
         Settings *GetSettings() { return this->settings; }
 
         DREAM::NBIHandler *NBI_handler=nullptr;
@@ -189,6 +192,10 @@ namespace DREAM {
 
         void SetBootstrap(BootstrapCurrent *bootstrap) {
             this->bootstrap = bootstrap;
+        }
+
+        void SetMollerKernelHandler (MollerKernelHandler *MKH) {
+            this->mollerKH = MKH;
         }
 
         void SetAnalyticDists(AnalyticDistributionRE *RE, AnalyticDistributionHottail *HT){

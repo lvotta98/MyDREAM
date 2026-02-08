@@ -4,6 +4,8 @@
 #include <vector>
 #include <algorithm>
 
+#include "DREAM/Equations/Kinetic/MollerEnergyKernel.hpp"
+#include "DREAM/Equations/Kinetic/MollerDeltaAngleKernel.hpp"
 #include "DREAM/Equations/Kinetic/MollerBoltzmannOperator.hpp"
 #include "DREAM/Settings/OptionConstants.hpp"
 #include "FVM/Grid/Grid.hpp"
@@ -112,7 +114,9 @@ bool MollerBoltzmannOperator::CheckBO_LinearityInFPrimary() {
     const len_t nXiStars = 60;
     const len_t nIntPts = 80;
 
-    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts);
+    auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
     real_t *fA  = new real_t[NP];
@@ -165,6 +169,9 @@ bool MollerBoltzmannOperator::CheckBO_LinearityInFPrimary() {
     delete gridK;
     delete gridP;
 
+    delete energy;
+    delete angle;
+
     return success;
 }
 
@@ -194,7 +201,9 @@ bool MollerBoltzmannOperator::CheckBO_JacobianFiniteDifferenceNt() {
     constexpr len_t nXiStars = 80;
     constexpr len_t nIntPts  = 80;
 
-    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts);
+    auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
     real_t *f0 = new real_t[NP];
@@ -246,6 +255,9 @@ bool MollerBoltzmannOperator::CheckBO_JacobianFiniteDifferenceNt() {
     delete gridK;
     delete gridP;
 
+    delete energy;
+    delete angle;
+
     return success;
 }
 
@@ -276,7 +288,9 @@ bool MollerBoltzmannOperator::CheckBO_GlobalProductionIdentity() {
     const len_t nXiStars = 80;
     const len_t nIntPts  = 80;
 
-    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts);
+    auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
@@ -309,6 +323,9 @@ bool MollerBoltzmannOperator::CheckBO_GlobalProductionIdentity() {
     delete gridF;
     delete gridK;
     delete gridP;
+
+    delete energy;
+    delete angle;
 
     return success;
 }
@@ -351,9 +368,9 @@ bool MollerBoltzmannOperator::CheckBO_HotRunawayGlobalProductionIdentity() {
     const len_t nXiStars = 80;
     const len_t nIntPts  = 80;
 
-    DREAM::MollerBoltzmannOperator op(
-        gridHot, gridRe, uqh, id_f_re, pCutoff, scaleFactor, nXiStars, nIntPts
-    );
+    auto *energy = new DREAM::MollerEnergyKernel(gridHot, gridRe, pCutoff);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridHot, gridRe, pCutoff, nXiStars, nIntPts);
+    DREAM::MollerBoltzmannOperator op(gridHot, gridRe, uqh, id_f_re, energy, angle, scaleFactor);
 
     const len_t NRe = gridRe->GetNCells();
     real_t *f = new real_t[NRe];
@@ -404,6 +421,9 @@ bool MollerBoltzmannOperator::CheckBO_HotRunawayGlobalProductionIdentity() {
     delete gridHot;
     delete gridRe;
 
+    delete energy;
+    delete angle;
+
     return success;
 }
 
@@ -432,7 +452,9 @@ bool MollerBoltzmannOperator::CheckBO_TimeCachingRegression() {
     const len_t nXiStars = 60;
     const len_t nIntPts  = 60;
 
-    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts);
+    auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
     real_t *fA = new real_t[NP];
@@ -484,6 +506,9 @@ bool MollerBoltzmannOperator::CheckBO_TimeCachingRegression() {
     delete gridK;
     delete gridP;
 
+    delete energy;
+    delete angle;
+
     return success;
 }
 
@@ -512,7 +537,9 @@ bool MollerBoltzmannOperator::CheckBO_NonNegativity() {
     const len_t nXiStars = 60;
     const len_t nIntPts  = 60;
 
-    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts);
+    auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
@@ -563,6 +590,9 @@ bool MollerBoltzmannOperator::CheckBO_NonNegativity() {
     delete gridK;
     delete gridP;
 
+    delete energy;
+    delete angle;
+
     return success;
 }
 
@@ -592,7 +622,9 @@ bool MollerBoltzmannOperator::CheckBO_RadiusLocality() {
     const len_t nXiStars = 60;
     const len_t nIntPts  = 60;
 
-    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, pCutoff, scaleFactor, nXiStars, nIntPts);
+    auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
@@ -653,6 +685,9 @@ bool MollerBoltzmannOperator::CheckBO_RadiusLocality() {
     delete gridF;
     delete gridK;
     delete gridP;
+
+    delete energy;
+    delete angle;
 
     return success;
 }

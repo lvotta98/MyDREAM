@@ -18,6 +18,7 @@
 #include "DREAM/Equations/Fluid/DensityFromDistributionFunction.hpp"
 #include "DREAM/Equations/Fluid/FreeElectronDensityTransientTerm.hpp"
 #include "DREAM/Equations/Fluid/KineticEquationTermIntegratedOverMomentum.hpp"
+#include "DREAM/Equations/Fluid/MollerProductionRateTerm.hpp"
 #include "DREAM/Equations/Kinetic/BCIsotropicSourcePXi.hpp"
 #include "DREAM/Equations/Kinetic/ComptonSource.hpp"
 #include "DREAM/Equations/Kinetic/ElectricFieldTerm.hpp"
@@ -119,7 +120,8 @@ void SimulationGenerator::ConstructEquation_f_hot_kineq(
 
     // several equation terms (Compton, Boltzmann) exist in the (f_hot, n_tot) block
     // and need to share operator
-    FVM::Operator *Op_ntot = nullptr;
+    len_t id_n_tot = eqsys->GetUnknownHandler()->GetUnknownID(OptionConstants::UQTY_N_TOT);
+    FVM::Operator *Op_ntot = new FVM::Operator(hottailGrid);
 
     // Kinetic avalanche source for f_hot.
     // - Boltzmann knock-on operator contributes in the (f_hot, n_tot) block (explicit in f_primary).
@@ -130,61 +132,67 @@ void SimulationGenerator::ConstructEquation_f_hot_kineq(
         || ava_mode == OptionConstants::EQTERM_AVALANCHE_MODE_BOLTZMANN_KNOCK_ON
     );
     if(useKineticAvalanche) {
-        if(eqsys->GetHotTailGridType() != OptionConstants::MOMENTUMGRID_TYPE_PXI)
-            throw NotImplementedException("f_hot: Kinetic avalanche sources only implemented for p-xi grid.");
+        if (eqsys->GetHotTailGridType() != OptionConstants::MOMENTUMGRID_TYPE_PXI)
+            throw NotImplementedException(
+                "f_hot: Kinetic avalanche sources only implemented for p-xi grid."
+            );
 
-        real_t pCutoff = s->GetReal("eqsys/n_re/pCutAvalanche");
         len_t id_n_re = eqsys->GetUnknownHandler()->GetUnknownID(OptionConstants::UQTY_N_RE);
-        if(ava_mode == OptionConstants::EQTERM_AVALANCHE_MODE_KINETIC){
-            // use only the RP approximation 
+        if (ava_mode == OptionConstants::EQTERM_AVALANCHE_MODE_KINETIC) {
+            // use only the RP approximation
+            real_t pCutoff = s->GetReal("eqsys/n_re/pCutAvalanche");
             FVM::Operator *Op_ava = new FVM::Operator(hottailGrid);
-            oqty_terms->f_hot_knock_on_RP = new AvalancheSourceRP(hottailGrid, eqsys->GetUnknownHandler(), pCutoff, sourceSign);
+            oqty_terms->f_hot_knock_on_RP =
+                new AvalancheSourceRP(hottailGrid, eqsys->GetUnknownHandler(), pCutoff, sourceSign);
             Op_ava->AddTerm(oqty_terms->f_hot_knock_on_RP);
             eqsys->SetOperator(id_f_hot, id_n_re, Op_ava);
         } else {
             // General Boltzmann knock-on source on hottail grid, with primaries from:
             //   (1) f_hot on hottail grid
             //   (2) optionally f_re on runaway grid (if present), otherwise RP via n_re
-            len_t id_n_tot = eqsys->GetUnknownID(OptionConstants::UQTY_N_TOT);
-            if (Op_ntot == nullptr){
-                Op_ntot = new FVM::Operator(hottailGrid);
-            }
-            oqty_terms->knock_on_general_hot_hot = new MollerBoltzmannOperator(hottailGrid, hottailGrid, eqsys->GetUnknownHandler(), id_f_hot, pCutoff, sourceSign);
+            auto *kh = eqsys->GetMollerKernelHandler();
+            oqty_terms->knock_on_general_hot_hot = new MollerBoltzmannOperator(
+                hottailGrid, hottailGrid, eqsys->GetUnknownHandler(), id_f_hot, kh->EnergyHotHot(),
+                kh->AngleHotHot(), sourceSign
+            );
             Op_ntot->AddTerm(oqty_terms->knock_on_general_hot_hot);
-            if(eqsys->HasRunawayGrid()){
-                // add the contributions from primary electrons living on the runaway grid
+
+            if (eqsys->HasRunawayGrid()) {
                 len_t id_f_re = eqsys->GetUnknownID(OptionConstants::UQTY_F_RE);
-                oqty_terms->knock_on_general_hot_re = new MollerBoltzmannOperator(hottailGrid, eqsys->GetRunawayGrid(), eqsys->GetUnknownHandler(), id_f_re, pCutoff, sourceSign);
+                oqty_terms->knock_on_general_hot_re = new MollerBoltzmannOperator(
+                    hottailGrid, eqsys->GetRunawayGrid(), eqsys->GetUnknownHandler(), id_f_re,
+                    kh->EnergyHotRe(), kh->AngleHotRe(), sourceSign
+                );
                 Op_ntot->AddTerm(oqty_terms->knock_on_general_hot_re);
             } else {
                 // no RE grid, use RP approximation for external runaways
+                real_t pCutoff = s->GetReal("eqsys/n_re/pCutAvalanche");
                 FVM::Operator *Op_ava = new FVM::Operator(hottailGrid);
-                oqty_terms->f_hot_knock_on_RP = new AvalancheSourceRP(hottailGrid, eqsys->GetUnknownHandler(), pCutoff, sourceSign);
+                oqty_terms->f_hot_knock_on_RP = new AvalancheSourceRP(
+                    hottailGrid, eqsys->GetUnknownHandler(), pCutoff, sourceSign
+                );
                 Op_ava->AddTerm(oqty_terms->f_hot_knock_on_RP);
                 eqsys->SetOperator(id_f_hot, id_n_re, Op_ava);
             }
-            eqsys->SetOperator(id_f_hot, id_n_tot, Op_ntot);
         }
     }
-    
+
     // Add Compton source
     OptionConstants::eqterm_compton_mode compton_mode = (enum OptionConstants::eqterm_compton_mode)s->GetInteger("eqsys/n_re/compton/mode");
     if(compton_mode == OptionConstants::EQTERM_COMPTON_MODE_KINETIC) {
         if(eqsys->GetHotTailGridType() != OptionConstants::MOMENTUMGRID_TYPE_PXI)
             throw NotImplementedException("f_hot: Kinetic Compton source only implemented for p-xi grid.");
 
-        // shared operator with boltzmann
-        if(Op_ntot == nullptr){
-            Op_ntot = new FVM::Operator(hottailGrid);
-        }
         oqty_terms->comptonSource_hottail = new ComptonSource(hottailGrid, eqsys->GetUnknownHandler(), LoadDataT("eqsys/n_re/compton", s, "flux"), 
             s->GetReal("eqsys/n_re/compton/gammaInt"), s->GetReal("eqsys/n_re/compton/C1"), s->GetReal("eqsys/n_re/compton/C2"), s->GetReal("eqsys/n_re/compton/C3"), 
             hottailGrid->GetMomentumGrid(0)->GetP1_f(hottailGrid->GetNp1(0)), sourceSign);
         Op_ntot->AddTerm(oqty_terms->comptonSource_hottail);
-        len_t id_n_tot = eqsys->GetUnknownHandler()->GetUnknownID(OptionConstants::UQTY_N_TOT);
-        eqsys->SetOperator(id_f_hot, id_n_tot, Op_ntot);
     }
-    
+    if (!Op_ntot->IsEmpty()) {
+        eqsys->SetOperator(id_f_hot, id_n_tot, Op_ntot);
+    } else {
+        delete Op_ntot;
+    }
     // Add tritium source
     OptionConstants::eqterm_tritium_mode tritium_mode = (enum OptionConstants::eqterm_tritium_mode)s->GetInteger("eqsys/n_re/tritium");
     if(tritium_mode == OptionConstants::EQTERM_TRITIUM_MODE_KINETIC) {
@@ -415,8 +423,39 @@ void SimulationGenerator::ConstructEquation_S_particle_explicit(EquationSystem *
             new TotalElectronDensityFromKineticAvalanche(fluidGrid, pCutoff, pMax, unknowns, -1.0)
         );
         desc += " - internal avalanche";
+    } else if (ava_mode == OptionConstants::EQTERM_AVALANCHE_MODE_BOLTZMANN_KNOCK_ON) {
+        if (eqsys->GetHotTailGridType() != OptionConstants::MOMENTUMGRID_TYPE_PXI)
+            throw NotImplementedException(
+                "S_particle: Boltzmann knock-on only implemented for p-xi grid."
+            );
+
+        const real_t sourceSign = -1.0;
+        const len_t id_f_hot = eqsys->GetUnknownID(OptionConstants::UQTY_F_HOT);
+        auto *kh = eqsys->GetMollerKernelHandler();
+
+        // (hot <- hot)
+        Op_Ntot->AddTerm(new MollerProductionRateTerm(
+            fluidGrid, hottailGrid, hottailGrid, unknowns, id_f_hot, kh->EnergyHotHot(), sourceSign
+        ));
+
+        // check if we also need to add collisions with runaways
+        if (eqsys->HasRunawayGrid()) {
+            const len_t id_f_re = eqsys->GetUnknownID(OptionConstants::UQTY_F_RE);
+
+            // (hot <- re)
+            Op_Ntot->AddTerm(new MollerProductionRateTerm(
+                fluidGrid, hottailGrid, eqsys->GetRunawayGrid(), unknowns, id_f_re,
+                kh->EnergyHotRe(), sourceSign
+            ));
+
+            // (re <- re)
+            Op_Ntot->AddTerm(new MollerProductionRateTerm(
+                fluidGrid, eqsys->GetRunawayGrid(), eqsys->GetRunawayGrid(), unknowns, id_f_re,
+                kh->EnergyReRe(), sourceSign
+            ));
+        }
+        desc += " - internal avalanche";
     }
-    
     // Add contribution from kinetic Compton source
     OptionConstants::eqterm_compton_mode compton_mode = (enum OptionConstants::eqterm_compton_mode)s->GetInteger("eqsys/n_re/compton/mode");
     if(compton_mode == OptionConstants::EQTERM_COMPTON_MODE_KINETIC) {
