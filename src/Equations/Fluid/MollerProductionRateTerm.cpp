@@ -77,16 +77,16 @@ void MollerProductionRateTerm::Rebuild(
                 const real_t f = fP[idx];
                 const real_t Vp1 = VpP[l * Np1P + k];
 
-                const real_t sigmaTot = energyKernel->TotalCS(k);
+                // TotalCS is v1*sigma_tot(p1)
+                const real_t sigmaTotV = energyKernel->TotalCS(k);
 
-                sum += dp1 * dxi1 * Vp1 * f * sigmaTot;
+                sum += dp1 * dxi1 * Vp1 * f * sigmaTotV;
             }
         }
 
         rate[ir] = scaleFactor * sum;
         offP += mgP->GetNCells();
     }
-
     t_rebuilt = t;
 }
 

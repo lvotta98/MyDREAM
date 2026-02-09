@@ -19,6 +19,7 @@
 #include "DREAM/Equations/Fluid/FreeElectronDensityTransientTerm.hpp"
 #include "DREAM/Equations/Fluid/KineticEquationTermIntegratedOverMomentum.hpp"
 #include "DREAM/Equations/Fluid/MollerProductionRateTerm.hpp"
+#include "DREAM/Equations/Kinetic/AvalancheSourceRP.hpp"
 #include "DREAM/Equations/Kinetic/BCIsotropicSourcePXi.hpp"
 #include "DREAM/Equations/Kinetic/ComptonSource.hpp"
 #include "DREAM/Equations/Kinetic/ElectricFieldTerm.hpp"
@@ -156,7 +157,6 @@ void SimulationGenerator::ConstructEquation_f_hot_kineq(
                 kh->AngleHotHot(), sourceSign
             );
             Op_ntot->AddTerm(oqty_terms->knock_on_general_hot_hot);
-
             if (eqsys->HasRunawayGrid()) {
                 len_t id_f_re = eqsys->GetUnknownID(OptionConstants::UQTY_F_RE);
                 oqty_terms->knock_on_general_hot_re = new MollerBoltzmannOperator(

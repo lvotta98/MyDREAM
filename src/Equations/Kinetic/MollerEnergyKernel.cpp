@@ -74,6 +74,7 @@ void MollerEnergyKernel::GridRebuilt() {
     }
 }
 
+// Velocity * total cross section (v_1 * sigma_tot(p_1)) at incident momentum p1_k
 real_t MollerEnergyKernel::TotalCS(len_t k) const {
     return KnockOnUtilities::EvaluateMollerFluxIntegratedOverKnockonGrid(k, gridK, gridP, pCutoff);
 }

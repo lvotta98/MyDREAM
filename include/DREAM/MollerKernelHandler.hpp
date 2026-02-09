@@ -8,7 +8,11 @@
 #include "FVM/config.h"
 
 namespace DREAM {
-
+/**
+ * Helper to manage the unknown-independent parts of the Boltzmann operator.
+ * Its purpose is to coordinate cross sections and angle distributions, since the large-angle
+ * collision operator is non-local and couples the distribution function across grids.
+ */
 class MollerKernelHandler {
    public:
     struct Bundle {
