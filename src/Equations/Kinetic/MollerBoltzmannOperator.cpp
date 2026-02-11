@@ -10,8 +10,8 @@ using namespace DREAM;
 
 MollerBoltzmannOperator::MollerBoltzmannOperator(
     FVM::Grid *gridKnockon, const FVM::Grid *grid_primary, FVM::UnknownQuantityHandler *unknowns,
-    len_t id_f_primary, const MollerEnergyKernel *energyKernel, const MollerDeltaAngleKernel *angleKernel,
-    real_t scaleFactor
+    len_t id_f_primary, const MollerEnergyKernel *energyKernel,
+    const MollerDeltaAngleKernel *angleKernel, real_t scaleFactor
 )
     : FVM::EquationTerm(gridKnockon),
       gridPrimary(grid_primary),
@@ -144,7 +144,6 @@ void MollerBoltzmannOperator::SetSourceVector(const real_t *f_primary) {
 
         // W_{k,l} = dp1_k * dxi_l * Vp_{k,l} * f_{k,l}
         BuildPrimaryWeights(ir, f_primary + offP, primaryWeights);
-
         for (len_t i = 0; i < Np1K; ++i) {
             for (len_t j = 0; j < NxiK; ++j) {
                 pitchAccum[j] = 0.0;
