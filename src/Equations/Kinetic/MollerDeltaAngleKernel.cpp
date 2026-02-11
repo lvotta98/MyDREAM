@@ -102,22 +102,31 @@ void DREAM::MollerDeltaAngleKernel::ValidateInputParameters() const {
     }
 }
 
-// Generate a xi_star grid on which we tabulate the kinematic delta. 
+// Evaluate the min and max values of xiStar on the grid.
+void MollerDeltaAngleKernel::EvaluateXiStarRangeOnGrids(real_t &xiStarMin, real_t &xiStarMax) {
+    auto *mgK = gridK->GetMomentumGrid(0);
+    auto *mgP = gridP->GetMomentumGrid(0);
+    xiStarMin = +std::numeric_limits<real_t>::infinity();
+    xiStarMax = -std::numeric_limits<real_t>::infinity();
+    for (len_t i = 0; i < mgK->GetNp1(); ++i) {
+        real_t p = mgK->GetP1(i);
+        for (len_t k = 0; k < mgP->GetNp1(); ++k) {
+            real_t p1 = mgP->GetP1(k);
+            real_t xs = KnockOnUtilities::Kinematics::EvaluateXiStar(p, p1);
+            if (!std::isfinite(xs)) {
+                continue;
+            }
+            xiStarMin = std::min(xiStarMin, xs);
+            xiStarMax = std::max(xiStarMax, xs);
+        }
+    }
+}
+
+// Generate a xi_star grid on which we tabulate the kinematic delta.
 // To get maximum bang for the back we identify its min and max values
 // on the given grids and only sample between those.
 void MollerDeltaAngleKernel::BuildXiStarTabulationGrid() {
-    const auto *mgK = gridK->GetMomentumGrid(0);
-    const auto *mgP = gridP->GetMomentumGrid(0);
-
-    const real_t p1_max = mgP->GetP1(mgP->GetNp1() - 1);
-    const real_t g1_max = std::sqrt(1 + p1_max * p1_max);
-    const real_t g_max = (g1_max + 1) / 2;
-    const real_t p_max = std::sqrt(g_max * g_max - 1);
-
-    const real_t p_min = std::max(pCutoff, mgK->GetP1(0));
-
-    xiStarMin = KnockOnUtilities::Kinematics::EvaluateXiStar(p_min, p1_max);
-    xiStarMax = KnockOnUtilities::Kinematics::EvaluateXiStar(p_max, p1_max);
+    EvaluateXiStarRangeOnGrids(xiStarMin, xiStarMax);
     dXiStar = (xiStarMax - xiStarMin) / (real_t)(nXiStarsTabulate - 1);
 
     xiStarsTab = new real_t[nXiStarsTabulate];
@@ -171,11 +180,8 @@ void MollerDeltaAngleKernel::TabulateDeltaMatrixOnXiStarGrid() {
     }
 }
 
-
 // Precompute interpolation tables for linear interpolation in delta vs xi_star.
 void MollerDeltaAngleKernel::BuildXiStarInterp() {
-    const real_t inv_dXiStar = 1.0 / dXiStar;
-
     for (len_t ir = 0; ir < gridK->GetNr(); ++ir) {
         const auto *mgK = gridK->GetMomentumGrid(ir);
         const auto *mgP = gridP->GetMomentumGrid(ir);
@@ -204,7 +210,7 @@ void MollerDeltaAngleKernel::BuildXiStarInterp() {
                     continue;
                 }
 
-                const real_t s = (xs - xiStarMin) * inv_dXiStar;
+                const real_t s = (xs - xiStarMin) / dXiStar;
                 len_t m0 = (len_t)s;
                 if (m0 >= nXiStarsTabulate - 1) {
                     m0 = nXiStarsTabulate - 2;
@@ -310,8 +316,9 @@ MollerDeltaAngleKernel::DeltaInterp MollerDeltaAngleKernel::GetDeltaInterp(
 void MollerDeltaAngleKernel::AccumulatePitch(
     len_t ir, len_t i, len_t k, const real_t *Wkl, real_t sigma_ik, real_t *Cj
 ) const {
-    if (sigma_ik == 0) return;
-
+    if (sigma_ik == 0) {
+        return;
+    }
     const auto *mgK = gridK->GetMomentumGrid(ir);
     const auto *mgP = gridP->GetMomentumGrid(ir);
 
