@@ -17,7 +17,6 @@ bool MollerDeltaAngleKernel::Run(bool) {
         success = false;
         this->PrintError("Test failed: interpolated delta columns do not normalize to 1.");
     }
-
     return success;
 }
 
@@ -42,11 +41,9 @@ bool MollerDeltaAngleKernel::CheckMDK_DeltaInterpolationConservation() {
 
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1(1);
     constexpr len_t n_xi_stars_tabulate = 80;
-    constexpr len_t n_points_integral   = 80;
+    constexpr len_t n_points_integral = 80;
 
-    DREAM::MollerDeltaAngleKernel K(
-        gridK, gridP, pCutoff, n_xi_stars_tabulate, n_points_integral
-    );
+    DREAM::MollerDeltaAngleKernel K(gridK, gridP, pCutoff, n_xi_stars_tabulate, n_points_integral);
     K.GridRebuilt();
 
     bool success = true;
@@ -55,9 +52,9 @@ bool MollerDeltaAngleKernel::CheckMDK_DeltaInterpolationConservation() {
         auto *mgK = gridK->GetMomentumGrid(ir);
         auto *mgP = gridP->GetMomentumGrid(ir);
 
-        const len_t NpK  = mgK->GetNp1();
+        const len_t NpK = mgK->GetNp1();
         const len_t NxiK = mgK->GetNp2();
-        const len_t NpP  = mgP->GetNp1();
+        const len_t NpP = mgP->GetNp1();
         const len_t NxiP = mgP->GetNp2();
 
         std::vector<real_t> W_l(NxiP, 0.0);
@@ -73,8 +70,7 @@ bool MollerDeltaAngleKernel::CheckMDK_DeltaInterpolationConservation() {
                     K.AccumulatePitch(ir, i, k, W_l.data(), /*Sik=*/1.0, outPitch.data());
 
                     real_t sum = 0.0;
-                    for (len_t j = 0; j < NxiK; j++)
-                        sum += mgK->GetDp2(j) * outPitch[j];
+                    for (len_t j = 0; j < NxiK; j++) sum += mgK->GetDp2(j) * outPitch[j];
 
                     const bool primaryVoid = (gridP->GetVpOverP2AtZero(ir)[l] == 0);
                     if (primaryVoid) {

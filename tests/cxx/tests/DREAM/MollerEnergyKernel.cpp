@@ -59,9 +59,9 @@ bool MollerEnergyKernel::CheckMEK_MollerKernelConservation() {
 
         for (len_t k = 0; k < NpP; k++) {
             real_t sum = 0.0;
-            for (len_t i = 0; i < NpK; i++)
+            for (len_t i = 0; i < NpK; i++) {
                 sum += dpK[i] * K.DifferentialCS(i, k);
-
+            }
             // Preferred: compare against kernel’s own TotalCS(k)
             const real_t expectedKernel = K.TotalCS(k);
 

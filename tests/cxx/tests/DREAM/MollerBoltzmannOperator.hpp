@@ -2,12 +2,13 @@
 #define _DREAMTESTS_DREAM_BOLTZMANN_OPERATOR_HPP
 
 #include <string>
+
 #include "UnitTest.hpp"
 
 namespace DREAMTESTS::_DREAM {
 
 class MollerBoltzmannOperator : public UnitTest {
-  public:
+   public:
     MollerBoltzmannOperator(const std::string &s) : UnitTest(s) {}
 
     bool CheckBO_LinearityInFPrimary();

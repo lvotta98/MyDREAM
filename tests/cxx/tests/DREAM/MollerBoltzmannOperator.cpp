@@ -1,18 +1,17 @@
 #include "MollerBoltzmannOperator.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
-#include <algorithm>
 
-#include "DREAM/Equations/Kinetic/MollerEnergyKernel.hpp"
-#include "DREAM/Equations/Kinetic/MollerDeltaAngleKernel.hpp"
 #include "DREAM/Equations/Kinetic/MollerBoltzmannOperator.hpp"
+#include "DREAM/Equations/Kinetic/MollerDeltaAngleKernel.hpp"
+#include "DREAM/Equations/Kinetic/MollerEnergyKernel.hpp"
 #include "DREAM/Settings/OptionConstants.hpp"
 #include "FVM/Grid/Grid.hpp"
 #include "FVM/Grid/MomentumGrid.hpp"
 #include "FVM/Matrix.hpp"
 #include "FVM/UnknownQuantityHandler.hpp"
-
 #include "KnockOnTestHelpers.hpp"
 
 using namespace DREAMTESTS::_DREAM;
@@ -119,13 +118,13 @@ bool MollerBoltzmannOperator::CheckBO_LinearityInFPrimary() {
     DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
-    real_t *fA  = new real_t[NP];
-    real_t *fB  = new real_t[NP];
+    real_t *fA = new real_t[NP];
+    real_t *fB = new real_t[NP];
     real_t *fAB = new real_t[NP];
 
     for (len_t i = 0; i < NP; i++) {
-        fA[i]  = 1e20 + 1e18 * (real_t)i;
-        fB[i]  = 1e20 + 2e18 * (real_t)i;
+        fA[i] = 1e20 + 1e18 * (real_t)i;
+        fB[i] = 1e20 + 2e18 * (real_t)i;
         fAB[i] = fA[i] + fB[i];
     }
 
@@ -152,8 +151,7 @@ bool MollerBoltzmannOperator::CheckBO_LinearityInFPrimary() {
         const real_t diff = fabs(lhs - rhs);
         if (diff > tol * (1 + fabs(lhs))) {
             this->PrintError(
-                "Linearity failed at q=%ld: lhs=%.8g rhs=%.8g diff=%.8g",
-                (long)q, lhs, rhs, diff
+                "Linearity failed at q=%ld: lhs=%.8g rhs=%.8g diff=%.8g", (long)q, lhs, rhs, diff
             );
             success = false;
             break;
@@ -199,7 +197,7 @@ bool MollerBoltzmannOperator::CheckBO_JacobianFiniteDifferenceNt() {
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
     constexpr real_t scaleFactor = 1.0;
     constexpr len_t nXiStars = 80;
-    constexpr len_t nIntPts  = 80;
+    constexpr len_t nIntPts = 80;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
     auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
@@ -207,15 +205,19 @@ bool MollerBoltzmannOperator::CheckBO_JacobianFiniteDifferenceNt() {
 
     const len_t NP = gridP->GetNCells();
     real_t *f0 = new real_t[NP];
-    for (len_t i = 0; i < NP; i++) f0[i] = 1e20;
-
+    for (len_t i = 0; i < NP; i++) {
+        f0[i] = 1e20;
+    }
     SetPreviousUnknownData(uqh, id_f, f0, 0.0);
     op.Rebuild(0.0, 1.0, uqh);
 
     const len_t NK = gridK->GetNCells();
     real_t *R0 = new real_t[NK];
     real_t *R1 = new real_t[NK];
-    for (len_t q = 0; q < NK; q++) { R0[q] = 0.0; R1[q] = 0.0; }
+    for (len_t q = 0; q < NK; q++) {
+        R0[q] = 0.0;
+        R1[q] = 0.0;
+    }
 
     real_t *nt = new real_t[nr];
     for (len_t ir = 0; ir < nr; ir++) nt[ir] = 1.0;
@@ -227,8 +229,9 @@ bool MollerBoltzmannOperator::CheckBO_JacobianFiniteDifferenceNt() {
     op.SetVectorElements(R1, nt);
 
     std::vector<real_t> dR(NK, 0.0);
-    for (len_t q = 0; q < NK; q++) dR[q] = (R1[q] - R0[q]) / eps;
-
+    for (len_t q = 0; q < NK; q++) {
+        dR[q] = (R1[q] - R0[q]) / eps;
+    }
     DREAM::FVM::Matrix jac(NK, NK, 1);
     jac.Zero();
     jac.PartialAssemble();
@@ -286,7 +289,7 @@ bool MollerBoltzmannOperator::CheckBO_GlobalProductionIdentity() {
 
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 80;
-    const len_t nIntPts  = 80;
+    const len_t nIntPts = 80;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
     auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
@@ -294,8 +297,9 @@ bool MollerBoltzmannOperator::CheckBO_GlobalProductionIdentity() {
 
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
-    for (len_t i = 0; i < NP; i++) f[i] = 1e20;
-
+    for (len_t i = 0; i < NP; i++) {
+        f[i] = 1e20;
+    }
     SetPreviousUnknownData(uqh, id_f, f, 0.0);
     op.Rebuild(0.0, 1.0, uqh);
 
@@ -305,7 +309,7 @@ bool MollerBoltzmannOperator::CheckBO_GlobalProductionIdentity() {
     const real_t LHS = IntegrateTotalProductionOverKnockonGrid(gridK, vec.data());
 
     const real_t RHS0 = PredictTotalProductionFromMollerS(gridK, gridP, f, pCutoff);
-    const real_t RHS  = scaleFactor * RHS0;
+    const real_t RHS = scaleFactor * RHS0;
 
     const real_t diff = fabs(LHS - RHS);
     const bool success = (diff <= atol + rtol * (fabs(LHS) + fabs(RHS)));
@@ -337,10 +341,10 @@ bool MollerBoltzmannOperator::CheckBO_HotRunawayGlobalProductionIdentity() {
 
     const len_t nr = 2;
 
-    const len_t npHot  = 18;
+    const len_t npHot = 18;
     const len_t nxiHot = 12;
 
-    const len_t npRe  = 22;
+    const len_t npRe = 22;
     const len_t nxiRe = 14;
 
     const len_t ntheta_interp = 50;
@@ -348,7 +352,7 @@ bool MollerBoltzmannOperator::CheckBO_HotRunawayGlobalProductionIdentity() {
 
     const real_t pMin = 0.0;
     const real_t pMaxHot = 4.0;
-    const real_t pMaxRe  = 20.0;
+    const real_t pMaxRe = 20.0;
 
     const real_t B0 = 1.0;
     auto *gridF = InitializeFluidGrid(nr, B0);
@@ -366,7 +370,7 @@ bool MollerBoltzmannOperator::CheckBO_HotRunawayGlobalProductionIdentity() {
     const real_t ntot = 1.0;
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 80;
-    const len_t nIntPts  = 80;
+    const len_t nIntPts = 80;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridHot, gridRe, pCutoff);
     auto *angle = new DREAM::MollerDeltaAngleKernel(gridHot, gridRe, pCutoff, nXiStars, nIntPts);
@@ -374,11 +378,11 @@ bool MollerBoltzmannOperator::CheckBO_HotRunawayGlobalProductionIdentity() {
 
     const len_t NRe = gridRe->GetNCells();
     real_t *f = new real_t[NRe];
-    for (len_t idx = 0; idx < NRe; idx++)
+    for (len_t idx = 0; idx < NRe; idx++) {
         f[idx] = 1e20 * (1.0 + 0.1 * (real_t)(idx % 7));
-
+    }
     const real_t dt = 1.0;
-    const real_t t  = 1.0;
+    const real_t t = 1.0;
     SetPreviousUnknownData(uqh, id_f_re, f, t - dt);
 
     op.Rebuild(t, dt, uqh);
@@ -392,10 +396,15 @@ bool MollerBoltzmannOperator::CheckBO_HotRunawayGlobalProductionIdentity() {
         real_t minVal = 1e300;
         len_t minIdx = 0;
         for (len_t q = 0; q < (len_t)vec.size(); q++) {
-            if (vec[q] < minVal) { minVal = vec[q]; minIdx = q; }
+            if (vec[q] < minVal) {
+                minVal = vec[q];
+                minIdx = q;
+            }
         }
         if (minVal < -absTolNonNeg) {
-            this->PrintError("hot<-re non-negativity failed: min(vec)=%.8g at q=%ld", minVal, minIdx);
+            this->PrintError(
+                "hot<-re non-negativity failed: min(vec)=%.8g at q=%ld", minVal, minIdx
+            );
             success = false;
         }
     }
@@ -403,7 +412,7 @@ bool MollerBoltzmannOperator::CheckBO_HotRunawayGlobalProductionIdentity() {
     const real_t LHS = IntegrateTotalProductionOverKnockonGrid(gridHot, vec.data());
 
     const real_t RHS0 = PredictTotalProductionFromMollerS(gridHot, gridRe, f, pCutoff);
-    const real_t RHS  = scaleFactor * ntot * RHS0;
+    const real_t RHS = scaleFactor * ntot * RHS0;
 
     const real_t diff = fabs(LHS - RHS);
     if (diff > atol + rtol * (fabs(LHS) + fabs(RHS))) {
@@ -450,7 +459,7 @@ bool MollerBoltzmannOperator::CheckBO_TimeCachingRegression() {
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 60;
-    const len_t nIntPts  = 60;
+    const len_t nIntPts = 60;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
     auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
@@ -459,7 +468,10 @@ bool MollerBoltzmannOperator::CheckBO_TimeCachingRegression() {
     const len_t NP = gridP->GetNCells();
     real_t *fA = new real_t[NP];
     real_t *fB = new real_t[NP];
-    for (len_t idx = 0; idx < NP; idx++) { fA[idx] = 1e20; fB[idx] = 2e20; }
+    for (len_t idx = 0; idx < NP; idx++) {
+        fA[idx] = 1e20;
+        fB[idx] = 2e20;
+    }
 
     std::vector<real_t> vecA, vecSameT, vecNewT;
     const real_t ntot = 1.0;
@@ -481,9 +493,9 @@ bool MollerBoltzmannOperator::CheckBO_TimeCachingRegression() {
 
     real_t maxRef = 0.0, maxDiffSame = 0.0, maxDiffNew = 0.0;
     for (len_t q = 0; q < (len_t)vecA.size(); q++) {
-        maxRef      = std::max(maxRef, fabs(vecA[q]));
+        maxRef = std::max(maxRef, fabs(vecA[q]));
         maxDiffSame = std::max(maxDiffSame, fabs(vecSameT[q] - vecA[q]));
-        maxDiffNew  = std::max(maxDiffNew, fabs(vecNewT[q] - 2.0 * vecA[q]));
+        maxDiffNew = std::max(maxDiffNew, fabs(vecNewT[q] - 2.0 * vecA[q]));
     }
 
     bool success = true;
@@ -535,7 +547,7 @@ bool MollerBoltzmannOperator::CheckBO_NonNegativity() {
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 60;
-    const len_t nIntPts  = 60;
+    const len_t nIntPts = 60;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
     auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
@@ -543,8 +555,9 @@ bool MollerBoltzmannOperator::CheckBO_NonNegativity() {
 
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
-    for (len_t idx = 0; idx < NP; idx++) f[idx] = 1e20;
-
+    for (len_t idx = 0; idx < NP; idx++) {
+        f[idx] = 1e20;
+    }
     SetPreviousUnknownData(uqh, id_f, f, 0.0);
     op.Rebuild(0.0, 1.0, uqh);
 
@@ -556,7 +569,10 @@ bool MollerBoltzmannOperator::CheckBO_NonNegativity() {
     real_t minVal = 1e300;
     len_t minIdx = 0;
     for (len_t q = 0; q < (len_t)vec.size(); q++) {
-        if (vec[q] < minVal) { minVal = vec[q]; minIdx = q; }
+        if (vec[q] < minVal) {
+            minVal = vec[q];
+            minIdx = q;
+        }
     }
 
     if (minVal < -absTol) {
@@ -620,7 +636,7 @@ bool MollerBoltzmannOperator::CheckBO_RadiusLocality() {
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1_f(2);
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 60;
-    const len_t nIntPts  = 60;
+    const len_t nIntPts = 60;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
     auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
@@ -628,8 +644,9 @@ bool MollerBoltzmannOperator::CheckBO_RadiusLocality() {
 
     const len_t NP = gridP->GetNCells();
     real_t *f = new real_t[NP];
-    for (len_t idx = 0; idx < NP; idx++) f[idx] = 1e20;
-
+    for (len_t idx = 0; idx < NP; idx++) {
+        f[idx] = 1e20;
+    }
     SetPreviousUnknownData(uqh, id_f, f, 0.0);
     op.Rebuild(0.0, 1.0, uqh);
 
@@ -650,27 +667,33 @@ bool MollerBoltzmannOperator::CheckBO_RadiusLocality() {
         const auto *mg = gridK->GetMomentumGrid(ir);
         const len_t nCells = mg->GetNCells();
         const len_t start = offset;
-        const len_t end   = offset + nCells;
+        const len_t end = offset + nCells;
 
         if (ir != ir0) {
             real_t maxAbs = 0.0;
-            for (len_t q = start; q < end; q++) maxAbs = std::max(maxAbs, fabs(vecLocal[q]));
+            for (len_t q = start; q < end; q++) {
+                maxAbs = std::max(maxAbs, fabs(vecLocal[q]));
+            }
             if (maxAbs > absTol) {
-                this->PrintError("Radius locality failed: ir=%ld leakage maxAbs=%.8g", (long)ir, maxAbs);
+                this->PrintError(
+                    "Radius locality failed: ir=%ld leakage maxAbs=%.8g", (long)ir, maxAbs
+                );
                 success = false;
                 break;
             }
         } else {
             real_t maxDiff = 0.0;
-            real_t maxRef  = 0.0;
+            real_t maxRef = 0.0;
             for (len_t q = start; q < end; q++) {
                 maxDiff = std::max(maxDiff, fabs(vecLocal[q] - vecAll[q]));
-                maxRef  = std::max(maxRef,  fabs(vecAll[q]));
+                maxRef = std::max(maxRef, fabs(vecAll[q]));
             }
             const real_t thresh = absTol + relTol * (1.0 + maxRef);
             if (maxDiff > thresh) {
                 this->PrintError("Radius locality failed: ir0 block mismatch.");
-                this->PrintError("  maxDiff=%.8g thresh=%.8g (maxRef=%.8g)", maxDiff, thresh, maxRef);
+                this->PrintError(
+                    "  maxDiff=%.8g thresh=%.8g (maxRef=%.8g)", maxDiff, thresh, maxRef
+                );
                 success = false;
                 break;
             }
