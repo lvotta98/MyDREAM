@@ -103,15 +103,29 @@ void DREAM::MollerDeltaAngleKernel::ValidateInputParameters() const {
 }
 
 // Evaluate the min and max values of xiStar on the grid.
+// Note, we here allow all energies up to the incident energy (-cutoff energy transfer).
+// For the regular knock-on problem we could in principle cut it off at half the energy,
+// to squeeze out a tiny bit of performance, but leaving it general for future safety
+// and it being no huge performance bottleneck. 
 void MollerDeltaAngleKernel::EvaluateXiStarRangeOnGrids(real_t &xiStarMin, real_t &xiStarMax) {
     auto *mgK = gridK->GetMomentumGrid(0);
     auto *mgP = gridP->GetMomentumGrid(0);
     xiStarMin = +std::numeric_limits<real_t>::infinity();
     xiStarMax = -std::numeric_limits<real_t>::infinity();
+    real_t gammaCutoff = 1;
     for (len_t i = 0; i < mgK->GetNp1(); ++i) {
         real_t p = mgK->GetP1(i);
+        real_t p_f1 = mgK->GetP1_f(i);
+        real_t p_f2 = mgK->GetP1_f(i+1);
+        real_t gamma_f1 = std::sqrt(1 + p_f1*p_f1);
         for (len_t k = 0; k < mgP->GetNp1(); ++k) {
             real_t p1 = mgP->GetP1(k);
+            real_t gamma1 = std::sqrt(1+p1*p1);
+            real_t gammaMax = gamma1 - gammaCutoff;
+            bool kinematicallyAvailable = p_f2>pCutoff && gamma_f1 < gammaMax;
+            if (!kinematicallyAvailable){
+                continue;
+            }
             real_t xs = KnockOnUtilities::Kinematics::EvaluateXiStar(p, p1);
             if (!std::isfinite(xs)) {
                 continue;
