@@ -243,9 +243,6 @@ namespace DREAM::FVM {
 		const real_t  GetPsiPrimeRef(const len_t ir) const {return this->psiPrimeRef[ir];}
 		const real_t *GetPsiPrimeRef_f() const {return this->psiPrimeRef_f;}
 		const real_t  GetPsiPrimeRef_f(const len_t ir) const {return this->psiPrimeRef_f[ir];}
-
-        const bool HasTrapped() const {return hasTrapped;}
-        // Returns the xi0 value corresponding to the positive
         
         const bool HasTrapped() const {return hasTrapped;}
         // Returns the xi0 value corresponding to the positive 

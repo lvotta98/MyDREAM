@@ -431,7 +431,6 @@ bool KnockOn::_checkDeltaConservationProperty(
                 if (grid_primary->GetVpOverP2AtZero(ir)[l] == 0) {
                     continue;
                 }
-                len_t n_points_integral = 50;  // = 80
                 real_t deltaXiIntegral = DREAM::KnockOnUtilities::SetDeltaMatrixColumnOnGrid(
                     ir, xi_star, l, grid_knockon, grid_primary, _deltaCol, nPointsIntegral,
                     DREAM::KnockOnUtilities::ADAPTIVE_TRAPEZOID
