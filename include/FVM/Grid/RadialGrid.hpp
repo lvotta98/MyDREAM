@@ -246,6 +246,9 @@ namespace DREAM::FVM {
 
         const bool HasTrapped() const {return hasTrapped;}
         // Returns the xi0 value corresponding to the positive
+        
+        const bool HasTrapped() const {return hasTrapped;}
+        // Returns the xi0 value corresponding to the positive 
         // trapped-passing boundary at radial index ir
         const real_t GetXi0TrappedBoundary(const len_t ir) const
             {return xi0TrappedBoundary[ir];}
