@@ -42,8 +42,11 @@ bool MollerDeltaAngleKernel::CheckMDK_DeltaInterpolationConservation() {
     const real_t pCutoff = gridK->GetMomentumGrid(0)->GetP1(1);
     constexpr len_t n_xi_stars_tabulate = 80;
     constexpr len_t n_points_integral = 80;
+    DREAM::KnockOnUtilities::orbit_integration_method integrationMethod = DREAM::KnockOnUtilities::MIDPOINT_RULE;
 
-    DREAM::MollerDeltaAngleKernel K(gridK, gridP, pCutoff, n_xi_stars_tabulate, n_points_integral);
+    DREAM::MollerDeltaAngleKernel K(
+        gridK, gridP, pCutoff, n_xi_stars_tabulate, n_points_integral, integrationMethod
+    );
     K.GridRebuilt();
 
     bool success = true;

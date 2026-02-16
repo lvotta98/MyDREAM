@@ -112,9 +112,10 @@ bool MollerBoltzmannOperator::CheckBO_LinearityInFPrimary() {
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 60;
     const len_t nIntPts = 80;
+    DREAM::KnockOnUtilities::orbit_integration_method integrationMethod = DREAM::KnockOnUtilities::MIDPOINT_RULE;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
-    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts, integrationMethod);
     DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
@@ -198,9 +199,10 @@ bool MollerBoltzmannOperator::CheckBO_JacobianFiniteDifferenceNt() {
     constexpr real_t scaleFactor = 1.0;
     constexpr len_t nXiStars = 80;
     constexpr len_t nIntPts = 80;
+    DREAM::KnockOnUtilities::orbit_integration_method integrationMethod = DREAM::KnockOnUtilities::MIDPOINT_RULE;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
-    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts, integrationMethod);
     DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
@@ -290,9 +292,10 @@ bool MollerBoltzmannOperator::CheckBO_GlobalProductionIdentity() {
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 80;
     const len_t nIntPts = 80;
+    DREAM::KnockOnUtilities::orbit_integration_method integrationMethod = DREAM::KnockOnUtilities::MIDPOINT_RULE;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
-    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts, integrationMethod);
     DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
@@ -371,9 +374,10 @@ bool MollerBoltzmannOperator::CheckBO_HotRunawayGlobalProductionIdentity() {
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 80;
     const len_t nIntPts = 80;
+    DREAM::KnockOnUtilities::orbit_integration_method integrationMethod = DREAM::KnockOnUtilities::MIDPOINT_RULE;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridHot, gridRe, pCutoff);
-    auto *angle = new DREAM::MollerDeltaAngleKernel(gridHot, gridRe, pCutoff, nXiStars, nIntPts);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridHot, gridRe, pCutoff, nXiStars, nIntPts, integrationMethod);
     DREAM::MollerBoltzmannOperator op(gridHot, gridRe, uqh, id_f_re, energy, angle, scaleFactor);
 
     const len_t NRe = gridRe->GetNCells();
@@ -460,9 +464,10 @@ bool MollerBoltzmannOperator::CheckBO_TimeCachingRegression() {
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 60;
     const len_t nIntPts = 60;
+    DREAM::KnockOnUtilities::orbit_integration_method integrationMethod = DREAM::KnockOnUtilities::MIDPOINT_RULE;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
-    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts, integrationMethod);
     DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
@@ -548,9 +553,10 @@ bool MollerBoltzmannOperator::CheckBO_NonNegativity() {
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 60;
     const len_t nIntPts = 60;
+    DREAM::KnockOnUtilities::orbit_integration_method integrationMethod = DREAM::KnockOnUtilities::MIDPOINT_RULE;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
-    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts, integrationMethod);
     DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
@@ -637,9 +643,10 @@ bool MollerBoltzmannOperator::CheckBO_RadiusLocality() {
     const real_t scaleFactor = 1.0;
     const len_t nXiStars = 60;
     const len_t nIntPts = 60;
+    DREAM::KnockOnUtilities::orbit_integration_method integrationMethod = DREAM::KnockOnUtilities::MIDPOINT_RULE;
 
     auto *energy = new DREAM::MollerEnergyKernel(gridK, gridP, pCutoff);
-    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts);
+    auto *angle = new DREAM::MollerDeltaAngleKernel(gridK, gridP, pCutoff, nXiStars, nIntPts, integrationMethod);
     DREAM::MollerBoltzmannOperator op(gridK, gridP, uqh, id_f, energy, angle, scaleFactor);
 
     const len_t NP = gridP->GetNCells();
