@@ -4,6 +4,7 @@
 #include "DREAM/DREAMException.hpp"
 #include "DREAM/Equations/Kinetic/MollerDeltaAngleKernel.hpp"
 #include "DREAM/Equations/Kinetic/MollerEnergyKernel.hpp"
+#include "DREAM/Equations/KnockOnUtilities.hpp"
 #include "FVM/Grid/Grid.hpp"
 #include "FVM/config.h"
 
@@ -32,9 +33,10 @@ class MollerKernelHandler {
     };
 
    private:
-    real_t pCutoff = 0;
-    len_t nXiStars = 0;
-    len_t nIntPts = 0;
+    real_t pCutoff;
+    len_t nXiStars;
+    len_t nIntPts;
+    KnockOnUtilities::orbit_integration_method integrationMethod;
 
     const FVM::Grid *hottailGrid = nullptr;
     const FVM::Grid *runawayGrid = nullptr;
@@ -62,35 +64,42 @@ class MollerKernelHandler {
 
     static Bundle MakeBundle(
         const FVM::Grid *target, const FVM::Grid *primary, real_t pCutoff, len_t nXiStars,
-        len_t nIntPts
+        len_t nIntPts, KnockOnUtilities::orbit_integration_method integrationMethod
     ) {
         Bundle b;
         b.energy = new MollerEnergyKernel(target, primary, pCutoff);
-        b.angle = new MollerDeltaAngleKernel(target, primary, pCutoff, nXiStars, nIntPts);
+        b.angle = new MollerDeltaAngleKernel(
+            target, primary, pCutoff, nXiStars, nIntPts, integrationMethod
+        );
         return b;
     }
 
    public:
     MollerKernelHandler(
         const FVM::Grid *hottailGrid, const FVM::Grid *runawayGrid, real_t pCutoff, len_t nXiStars,
-        len_t nIntPts
+        len_t nIntPts, KnockOnUtilities::orbit_integration_method integrationMethod
     )
         : pCutoff(pCutoff),
           nXiStars(nXiStars),
           nIntPts(nIntPts),
+          integrationMethod(integrationMethod),
           hottailGrid(hottailGrid),
           runawayGrid(runawayGrid) {
         ValidateParams(pCutoff, nXiStars, nIntPts);
 
         // Explicitly build only what is possible.
         if (hottailGrid != nullptr) {
-            hot_hot = MakeBundle(hottailGrid, hottailGrid, pCutoff, nXiStars, nIntPts);
+            hot_hot =
+                MakeBundle(hottailGrid, hottailGrid, pCutoff, nXiStars, nIntPts, integrationMethod);
             if (runawayGrid != nullptr) {
-                hot_re = MakeBundle(hottailGrid, runawayGrid, pCutoff, nXiStars, nIntPts);
+                hot_re = MakeBundle(
+                    hottailGrid, runawayGrid, pCutoff, nXiStars, nIntPts, integrationMethod
+                );
             }
         }
         if (runawayGrid != nullptr) {
-            re_re = MakeBundle(runawayGrid, runawayGrid, pCutoff, nXiStars, nIntPts);
+            re_re =
+                MakeBundle(runawayGrid, runawayGrid, pCutoff, nXiStars, nIntPts, integrationMethod);
         }
     }
 
@@ -148,6 +157,9 @@ class MollerKernelHandler {
     real_t GetPCutoff() const { return pCutoff; }
     len_t GetNXiStars() const { return nXiStars; }
     len_t GetNIntPts() const { return nIntPts; }
+    KnockOnUtilities::orbit_integration_method GetIntegrationMethod() const {
+        return integrationMethod;
+    }
 };
 
 }  // namespace DREAM

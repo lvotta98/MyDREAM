@@ -1,6 +1,7 @@
 #ifndef _DREAM_EQUATIONS_MOLLER_DELTA_ANGLE_KERNEL_HPP
 #define _DREAM_EQUATIONS_MOLLER_DELTA_ANGLE_KERNEL_HPP
 
+#include "DREAM/Equations/KnockOnUtilities.hpp"
 #include "FVM/Grid/Grid.hpp"
 #include "FVM/config.h"
 
@@ -32,6 +33,7 @@ class MollerDeltaAngleKernel {
     real_t pCutoff = 0;
     len_t nXiStarsTabulate = 0;
     len_t nPointsIntegral = 0;
+    KnockOnUtilities::orbit_integration_method integrationMethod;
 
     // xi_star tabulation grid
     real_t xiStarMin = 0, xiStarMax = 1, dXiStar = 1;
@@ -63,7 +65,8 @@ class MollerDeltaAngleKernel {
    public:
     MollerDeltaAngleKernel(
         const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t p_cutoff,
-        len_t n_xi_stars_tabulate, len_t n_points_integral
+        len_t n_xi_stars_tabulate, len_t n_points_integral,
+        KnockOnUtilities::orbit_integration_method integration_method
     );
     ~MollerDeltaAngleKernel();
 

@@ -11,13 +11,15 @@ using namespace DREAM;
 
 MollerDeltaAngleKernel::MollerDeltaAngleKernel(
     const FVM::Grid *grid_knockon, const FVM::Grid *grid_primary, real_t p_cutoff,
-    len_t n_xi_stars_tabulate, len_t n_points_integral
+    len_t n_xi_stars_tabulate, len_t n_points_integral,
+    KnockOnUtilities::orbit_integration_method integration_method
 )
     : gridK(grid_knockon),
       gridP(grid_primary),
       pCutoff(p_cutoff),
       nXiStarsTabulate(n_xi_stars_tabulate),
-      nPointsIntegral(n_points_integral) {
+      nPointsIntegral(n_points_integral),
+      integrationMethod(integration_method) {
     ValidateInputParameters();
     GridRebuilt();
 }
@@ -106,7 +108,7 @@ void DREAM::MollerDeltaAngleKernel::ValidateInputParameters() const {
 // Note, we here allow all energies up to the incident energy (-cutoff energy transfer).
 // For the regular knock-on problem we could in principle cut it off at half the energy,
 // to squeeze out a tiny bit of performance, but leaving it general for future safety
-// and it being no huge performance bottleneck. 
+// and it being no huge performance bottleneck.
 void MollerDeltaAngleKernel::EvaluateXiStarRangeOnGrids(real_t &xiStarMin, real_t &xiStarMax) {
     auto *mgK = gridK->GetMomentumGrid(0);
     auto *mgP = gridP->GetMomentumGrid(0);
@@ -116,14 +118,14 @@ void MollerDeltaAngleKernel::EvaluateXiStarRangeOnGrids(real_t &xiStarMin, real_
     for (len_t i = 0; i < mgK->GetNp1(); ++i) {
         real_t p = mgK->GetP1(i);
         real_t p_f1 = mgK->GetP1_f(i);
-        real_t p_f2 = mgK->GetP1_f(i+1);
-        real_t gamma_f1 = std::sqrt(1 + p_f1*p_f1);
+        real_t p_f2 = mgK->GetP1_f(i + 1);
+        real_t gamma_f1 = std::sqrt(1 + p_f1 * p_f1);
         for (len_t k = 0; k < mgP->GetNp1(); ++k) {
             real_t p1 = mgP->GetP1(k);
-            real_t gamma1 = std::sqrt(1+p1*p1);
+            real_t gamma1 = std::sqrt(1 + p1 * p1);
             real_t gammaMax = gamma1 - gammaCutoff;
-            bool kinematicallyAvailable = p_f2>pCutoff && gamma_f1 < gammaMax;
-            if (!kinematicallyAvailable){
+            bool kinematicallyAvailable = p_f2 > pCutoff && gamma_f1 < gammaMax;
+            if (!kinematicallyAvailable) {
                 continue;
             }
             real_t xs = KnockOnUtilities::Kinematics::EvaluateXiStar(p, p1);
@@ -187,7 +189,8 @@ void MollerDeltaAngleKernel::TabulateDeltaMatrixOnXiStarGrid() {
             for (len_t l = 0; l < NxiP; ++l) {
                 const len_t offset = l * NxiK;
                 KnockOnUtilities::SetDeltaMatrixColumnOnGrid(
-                    ir, xiStarsTab[m], l, gridK, gridP, plane + offset, nPointsIntegral
+                    ir, xiStarsTab[m], l, gridK, gridP, plane + offset, nPointsIntegral,
+                    integrationMethod
                 );
             }
         }
